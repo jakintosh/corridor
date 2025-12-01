@@ -1,0 +1,13 @@
+[package]
+name = "corridor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+winit = "0.30"
+wgpu = "27"
+egui = "0.33"
+egui-wgpu = "0.33"
+egui-winit = "0.33"
+pollster = "0.4"
+bytemuck = { version = "1.20", features = ["derive"] }
