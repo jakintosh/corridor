@@ -1,14 +1,38 @@
-use super::Buffers;
+use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers};
+use crate::scene::{Camera, Scene};
 
-pub fn render_cube(
+pub fn render_scene(
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
     render_pipeline: &wgpu::RenderPipeline,
-    buffers: &Buffers,
-    index_count: u32,
+    mesh_buffers: &[MeshBuffers],
+    instance_buffer: &InstanceBuffer,
+    camera_buffer: &CameraBuffer,
+    queue: &wgpu::Queue,
+    scene: &Scene,
+    camera: &Camera,
 ) {
+    // Update camera uniform
+    let view_proj = camera.view_projection_matrix();
+    camera_buffer.update(queue, &view_proj);
+
+    // Build instance data from scene nodes
+    let instance_data: Vec<InstanceData> = scene
+        .nodes
+        .iter()
+        .map(|node| {
+            let matrix = node.transform.to_matrix();
+            let color = scene.materials[node.material_id].color;
+            InstanceData { matrix, color }
+        })
+        .collect();
+
+    // Update instance buffer
+    instance_buffer.update(queue, &instance_data);
+
+    // Begin render pass
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("Render Pass"),
+        label: Some("Scene Render Pass"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view,
             resolve_target: None,
@@ -29,8 +53,52 @@ pub fn render_cube(
     });
 
     render_pass.set_pipeline(render_pipeline);
-    render_pass.set_bind_group(0, &buffers.bind_group, &[]);
-    render_pass.set_vertex_buffer(0, buffers.vertex_buffer.slice(..));
-    render_pass.set_index_buffer(buffers.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-    render_pass.draw_indexed(0..index_count, 0, 0..1);
+    render_pass.set_bind_group(0, &camera_buffer.bind_group, &[]);
+    render_pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
+
+    // Group nodes by mesh and render
+    let mut current_mesh: Option<usize> = None;
+    let mut instance_start = 0;
+    let mut instance_count = 0;
+
+    for (i, node) in scene.nodes.iter().enumerate() {
+        if current_mesh != Some(node.mesh_id) {
+            // Draw previous batch if any
+            if let Some(mesh_id) = current_mesh {
+                let mesh_buf = &mesh_buffers[mesh_id];
+                render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
+                render_pass.set_index_buffer(
+                    mesh_buf.index_buffer.slice(..),
+                    wgpu::IndexFormat::Uint32,
+                );
+                render_pass.draw_indexed(
+                    0..mesh_buf.index_count,
+                    0,
+                    instance_start..instance_start + instance_count,
+                );
+            }
+
+            // Start new batch
+            current_mesh = Some(node.mesh_id);
+            instance_start = i as u32;
+            instance_count = 1;
+        } else {
+            instance_count += 1;
+        }
+    }
+
+    // Draw final batch
+    if let Some(mesh_id) = current_mesh {
+        let mesh_buf = &mesh_buffers[mesh_id];
+        render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(
+            mesh_buf.index_buffer.slice(..),
+            wgpu::IndexFormat::Uint32,
+        );
+        render_pass.draw_indexed(
+            0..mesh_buf.index_count,
+            0,
+            instance_start..instance_start + instance_count,
+        );
+    }
 }

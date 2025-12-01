@@ -1,3 +1,3 @@
-mod cube;
+mod mesh;
 
-pub use cube::{index_count, Vertex, INDICES, VERTICES};
+pub use mesh::{Mesh, Vertex};

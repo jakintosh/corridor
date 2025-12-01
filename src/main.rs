@@ -1,6 +1,7 @@
 mod app;
 mod geometry;
 mod rendering;
+mod scene;
 mod shaders;
 mod state;
 mod ui;

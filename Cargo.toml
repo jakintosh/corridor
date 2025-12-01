@@ -11,3 +11,4 @@ egui-wgpu = "0.33"
 egui-winit = "0.33"
 pollster = "0.4"
 bytemuck = { version = "1.20", features = ["derive"] }
+glam = "0.30.9"
