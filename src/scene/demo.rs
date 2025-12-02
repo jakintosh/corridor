@@ -7,7 +7,7 @@ pub fn create_demo_scene() -> Scene {
     // Create meshes
     let cube_mesh = Mesh::cube();
     let quad_mesh = Mesh::quad();
-    let line_mesh = Mesh::line_segment();
+    let line_mesh = Mesh::line_segment(0.05);
 
     scene.meshes.push(cube_mesh); // mesh_id = 0
     scene.meshes.push(quad_mesh); // mesh_id = 1
@@ -18,6 +18,7 @@ pub fn create_demo_scene() -> Scene {
     scene.materials.push(Material::from_rgb(0.0, 0.0, 1.0)); // Blue, material_id = 1
     scene.materials.push(Material::from_rgb(0.0, 1.0, 0.0)); // Green, material_id = 2
     scene.materials.push(Material::from_rgb(0.5, 0.5, 0.5)); // Gray, material_id = 3
+    scene.materials.push(Material::from_rgb(0.0, 0.0, 0.0)); // Gray, material_id = 4
 
     // Ground plane (large gray quad)
     scene.nodes.push(SceneNode::new(
@@ -71,7 +72,7 @@ pub fn create_demo_scene() -> Scene {
     for i in -2..=2 {
         scene.nodes.push(SceneNode::new(
             2,
-            3,
+            4,
             Transform::new(
                 [0.0, 0.01, i as f32 * 2.0],
                 [0.0, 0.0, 0.0],
@@ -84,7 +85,7 @@ pub fn create_demo_scene() -> Scene {
     for i in -2..=2 {
         scene.nodes.push(SceneNode::new(
             2,
-            3,
+            4,
             Transform::new(
                 [i as f32 * 2.0, 0.01, 0.0],
                 [0.0, std::f32::consts::FRAC_PI_2, 0.0],

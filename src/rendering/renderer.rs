@@ -4,6 +4,7 @@ use crate::scene::{Camera, Scene};
 pub fn render_scene(
     encoder: &mut wgpu::CommandEncoder,
     view: &wgpu::TextureView,
+    depth_view: &wgpu::TextureView,
     render_pipeline: &wgpu::RenderPipeline,
     mesh_buffers: &[MeshBuffers],
     instance_buffer: &InstanceBuffer,
@@ -47,7 +48,14 @@ pub fn render_scene(
             },
             depth_slice: None,
         })],
-        depth_stencil_attachment: None,
+        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            view: depth_view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Discard,
+            }),
+            stencil_ops: None,
+        }),
         timestamp_writes: None,
         occlusion_query_set: None,
     });

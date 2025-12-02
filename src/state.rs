@@ -115,6 +115,13 @@ impl State {
             self.gpu.config.height = new_size.height;
             self.gpu.surface.configure(&self.gpu.device, &self.gpu.config);
 
+            // Recreate depth texture with new size
+            self.gpu.depth_texture = GpuContext::create_depth_texture(
+                &self.gpu.device,
+                new_size.width,
+                new_size.height,
+            );
+
             // Update camera aspect ratio
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
             self.camera.update_aspect_ratio(aspect_ratio);
@@ -152,6 +159,7 @@ impl State {
         render_scene(
             &mut encoder,
             &view,
+            &self.gpu.depth_texture,
             &self.pipeline.render_pipeline,
             &self.mesh_buffers,
             &self.instance_buffer,

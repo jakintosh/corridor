@@ -29,49 +29,92 @@ impl Mesh {
     pub fn cube() -> Self {
         let vertices = vec![
             // Front face
-            Vertex { position: [-0.5, -0.5, 0.5] },
-            Vertex { position: [0.5, -0.5, 0.5] },
-            Vertex { position: [0.5, 0.5, 0.5] },
-            Vertex { position: [-0.5, 0.5, 0.5] },
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+            },
             // Back face
-            Vertex { position: [-0.5, -0.5, -0.5] },
-            Vertex { position: [0.5, -0.5, -0.5] },
-            Vertex { position: [0.5, 0.5, -0.5] },
-            Vertex { position: [-0.5, 0.5, -0.5] },
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+            },
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+            },
             // Top face
-            Vertex { position: [-0.5, 0.5, 0.5] },
-            Vertex { position: [0.5, 0.5, 0.5] },
-            Vertex { position: [0.5, 0.5, -0.5] },
-            Vertex { position: [-0.5, 0.5, -0.5] },
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+            },
             // Bottom face
-            Vertex { position: [-0.5, -0.5, 0.5] },
-            Vertex { position: [0.5, -0.5, 0.5] },
-            Vertex { position: [0.5, -0.5, -0.5] },
-            Vertex { position: [-0.5, -0.5, -0.5] },
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+            },
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+            },
             // Right face
-            Vertex { position: [0.5, -0.5, 0.5] },
-            Vertex { position: [0.5, 0.5, 0.5] },
-            Vertex { position: [0.5, 0.5, -0.5] },
-            Vertex { position: [0.5, -0.5, -0.5] },
+            Vertex {
+                position: [0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, 0.5],
+            },
+            Vertex {
+                position: [0.5, 0.5, -0.5],
+            },
+            Vertex {
+                position: [0.5, -0.5, -0.5],
+            },
             // Left face
-            Vertex { position: [-0.5, -0.5, 0.5] },
-            Vertex { position: [-0.5, 0.5, 0.5] },
-            Vertex { position: [-0.5, 0.5, -0.5] },
-            Vertex { position: [-0.5, -0.5, -0.5] },
+            Vertex {
+                position: [-0.5, -0.5, 0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.5, 0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.5, -0.5],
+            },
+            Vertex {
+                position: [-0.5, -0.5, -0.5],
+            },
         ];
 
         let indices = vec![
             // Front face
-            2, 1, 0, 3, 2, 0,
-            // Back face
-            6, 4, 5, 7, 4, 6,
-            // Top face
-            10, 9, 8, 11, 10, 8,
-            // Bottom face
-            14, 12, 13, 15, 12, 14,
-            // Right face
-            16, 17, 18, 16, 18, 19,
-            // Left face
+            2, 1, 0, 3, 2, 0, // Back face
+            6, 4, 5, 7, 4, 6, // Top face
+            10, 9, 8, 11, 10, 8, // Bottom face
+            14, 12, 13, 15, 12, 14, // Right face
+            16, 17, 18, 16, 18, 19, // Left face
             21, 20, 22, 22, 20, 23,
         ];
 
@@ -80,27 +123,48 @@ impl Mesh {
 
     pub fn quad() -> Self {
         let vertices = vec![
-            Vertex { position: [-0.5, 0.0, -0.5] },
-            Vertex { position: [0.5, 0.0, -0.5] },
-            Vertex { position: [0.5, 0.0, 0.5] },
-            Vertex { position: [-0.5, 0.0, 0.5] },
+            Vertex {
+                position: [-0.5, 0.0, -0.5],
+            },
+            Vertex {
+                position: [0.5, 0.0, -0.5],
+            },
+            Vertex {
+                position: [0.5, 0.0, 0.5],
+            },
+            Vertex {
+                position: [-0.5, 0.0, 0.5],
+            },
         ];
 
-        let indices = vec![
-            0, 1, 2,
-            0, 2, 3,
-        ];
+        let indices = vec![0, 1, 2, 0, 2, 3];
 
         Self { vertices, indices }
     }
 
-    pub fn line_segment() -> Self {
+    pub fn line_segment(width: f32) -> Self {
+        // Create a thin quad (2 triangles) lying flat on the XZ plane
+        // This renders as a thin line on the ground
+
         let vertices = vec![
-            Vertex { position: [-0.5, 0.0, 0.0] },
-            Vertex { position: [0.5, 0.0, 0.0] },
+            Vertex {
+                position: [-0.5, 0.0, -width / 2.0],
+            }, // Bottom left
+            Vertex {
+                position: [0.5, 0.0, -width / 2.0],
+            }, // Bottom right
+            Vertex {
+                position: [0.5, 0.0, width / 2.0],
+            }, // Top right
+            Vertex {
+                position: [-0.5, 0.0, width / 2.0],
+            }, // Top left
         ];
 
-        let indices = vec![0, 1];
+        let indices = vec![
+            0, 1, 2, // First triangle
+            0, 2, 3, // Second triangle
+        ];
 
         Self { vertices, indices }
     }
