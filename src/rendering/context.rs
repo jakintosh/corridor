@@ -11,7 +11,9 @@ pub struct GpuContext {
 
 impl GpuContext {
     pub async fn new(window: &Arc<Window>) -> Self {
-        let size = window.inner_size();
+        let raw_size = window.inner_size();
+        // Some web environments report a zero-sized canvas before layout; clamp to at least 1.
+        let size = winit::dpi::PhysicalSize::new(raw_size.width.max(1), raw_size.height.max(1));
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             #[cfg(not(target_arch = "wasm32"))]
             backends: wgpu::Backends::all(),
@@ -31,8 +33,20 @@ impl GpuContext {
             .await
             .expect("Failed to request adapter - no compatible GPU found.");
 
+        // WebGL-backed wasm contexts have strict limits; request the downlevel-safe defaults.
+        let limits = if cfg!(target_arch = "wasm32") {
+            wgpu::Limits::downlevel_webgl2_defaults()
+        } else {
+            wgpu::Limits::default()
+        };
+
         let (device, queue) = adapter
-            .request_device(&Default::default())
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: limits,
+                ..Default::default()
+            })
             .await
             .expect("Failed to request device");
 

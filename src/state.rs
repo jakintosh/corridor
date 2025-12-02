@@ -5,7 +5,7 @@ use crate::rendering::{
 use crate::scene::{self, Camera, Scene};
 use crate::ui::{panels, CameraDebugInfo, EguiIntegration};
 use glam::Quat;
-use std::time::Instant;
+use instant::Instant;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::window::Window;
 

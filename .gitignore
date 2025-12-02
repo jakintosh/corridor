@@ -1,2 +1,5 @@
 /target
 /videos
+
+# wasm artifacts
+/web/pkg/
