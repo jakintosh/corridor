@@ -1,5 +1,7 @@
 use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers};
 use crate::scene::{Camera, Scene};
+use crate::rendering::buffers::LightingBuffer;
+use crate::rendering::LightingUniform;
 
 pub fn render_scene(
     encoder: &mut wgpu::CommandEncoder,
@@ -9,13 +11,18 @@ pub fn render_scene(
     mesh_buffers: &[MeshBuffers],
     instance_buffer: &InstanceBuffer,
     camera_buffer: &CameraBuffer,
+    lighting_buffer: &LightingBuffer,
     queue: &wgpu::Queue,
     scene: &Scene,
     camera: &Camera,
+    lighting: &LightingUniform,
 ) {
     // Update camera uniform
     let view_proj = camera.view_projection_matrix();
     camera_buffer.update(queue, &view_proj);
+
+    // Update lighting uniform
+    lighting_buffer.update(queue, lighting);
 
     // Build instance data from scene nodes
     let instance_data: Vec<InstanceData> = scene
@@ -62,6 +69,7 @@ pub fn render_scene(
 
     render_pass.set_pipeline(render_pipeline);
     render_pass.set_bind_group(0, &camera_buffer.bind_group, &[]);
+    render_pass.set_bind_group(1, &lighting_buffer.bind_group, &[]);
     render_pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
 
     // Group nodes by mesh and render

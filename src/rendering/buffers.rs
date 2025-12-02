@@ -19,28 +19,28 @@ impl InstanceData {
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x4,
                     offset: 0,
-                    shader_location: 1,
-                },
-                wgpu::VertexAttribute {
-                    format: wgpu::VertexFormat::Float32x4,
-                    offset: 16,
                     shader_location: 2,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x4,
-                    offset: 32,
+                    offset: 16,
                     shader_location: 3,
                 },
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x4,
-                    offset: 48,
+                    offset: 32,
                     shader_location: 4,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x4,
+                    offset: 48,
+                    shader_location: 5,
                 },
                 // Color (1 vec4)
                 wgpu::VertexAttribute {
                     format: wgpu::VertexFormat::Float32x4,
                     offset: 64,
-                    shader_location: 5,
+                    shader_location: 6,
                 },
             ],
         }
@@ -132,5 +132,44 @@ impl CameraBuffer {
 
     pub fn update(&self, queue: &wgpu::Queue, view_proj: &[[f32; 4]; 4]) {
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&[*view_proj]));
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Pod, Zeroable)]
+pub struct LightingUniform {
+    pub sun_direction: [f32; 4], // xyz = direction, w = intensity
+    pub sun_color: [f32; 4],
+    pub horizon_color: [f32; 4], // w = ambient height
+}
+
+pub struct LightingBuffer {
+    pub buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+}
+
+impl LightingBuffer {
+    pub fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Lighting Buffer"),
+            size: std::mem::size_of::<LightingUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Lighting Bind Group"),
+            layout: bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        });
+
+        Self { buffer, bind_group }
+    }
+
+    pub fn update(&self, queue: &wgpu::Queue, data: &LightingUniform) {
+        queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(data));
     }
 }

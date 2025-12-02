@@ -4,6 +4,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct Vertex {
     pub position: [f32; 3],
+    pub normal: [f32; 3],
 }
 
 impl Vertex {
@@ -11,11 +12,18 @@ impl Vertex {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &[wgpu::VertexAttribute {
-                format: wgpu::VertexFormat::Float32x3,
-                offset: 0,
-                shader_location: 0,
-            }],
+            attributes: &[
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 0,
+                    shader_location: 0,
+                },
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Float32x3,
+                    offset: 12,
+                    shader_location: 1,
+                },
+            ],
         }
     }
 }
@@ -31,80 +39,104 @@ impl Mesh {
             // Front face
             Vertex {
                 position: [-0.5, -0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
             },
             Vertex {
                 position: [0.5, -0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
             },
             Vertex {
                 position: [-0.5, 0.5, 0.5],
+                normal: [0.0, 0.0, 1.0],
             },
             // Back face
             Vertex {
                 position: [-0.5, -0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
             },
             Vertex {
                 position: [0.5, -0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
+                normal: [0.0, 0.0, -1.0],
             },
             // Top face
             Vertex {
                 position: [-0.5, 0.5, 0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             // Bottom face
             Vertex {
                 position: [-0.5, -0.5, 0.5],
+                normal: [0.0, -1.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, 0.5],
+                normal: [0.0, -1.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, -0.5],
+                normal: [0.0, -1.0, 0.0],
             },
             Vertex {
                 position: [-0.5, -0.5, -0.5],
+                normal: [0.0, -1.0, 0.0],
             },
             // Right face
             Vertex {
                 position: [0.5, -0.5, 0.5],
+                normal: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, 0.5],
+                normal: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.5, -0.5],
+                normal: [1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [0.5, -0.5, -0.5],
+                normal: [1.0, 0.0, 0.0],
             },
             // Left face
             Vertex {
                 position: [-0.5, -0.5, 0.5],
+                normal: [-1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, 0.5],
+                normal: [-1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.5, -0.5],
+                normal: [-1.0, 0.0, 0.0],
             },
             Vertex {
                 position: [-0.5, -0.5, -0.5],
+                normal: [-1.0, 0.0, 0.0],
             },
         ];
 
@@ -125,15 +157,19 @@ impl Mesh {
         let vertices = vec![
             Vertex {
                 position: [-0.5, 0.0, -0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.0, -0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [0.5, 0.0, 0.5],
+                normal: [0.0, 1.0, 0.0],
             },
             Vertex {
                 position: [-0.5, 0.0, 0.5],
+                normal: [0.0, 1.0, 0.0],
             },
         ];
 
@@ -149,15 +185,19 @@ impl Mesh {
         let vertices = vec![
             Vertex {
                 position: [-0.5, 0.0, -width / 2.0],
+                normal: [0.0, 1.0, 0.0],
             }, // Bottom left
             Vertex {
                 position: [0.5, 0.0, -width / 2.0],
+                normal: [0.0, 1.0, 0.0],
             }, // Bottom right
             Vertex {
                 position: [0.5, 0.0, width / 2.0],
+                normal: [0.0, 1.0, 0.0],
             }, // Top right
             Vertex {
                 position: [-0.5, 0.0, width / 2.0],
+                normal: [0.0, 1.0, 0.0],
             }, // Top left
         ];
 
