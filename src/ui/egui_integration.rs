@@ -7,6 +7,12 @@ pub struct EguiIntegration {
     state: egui_winit::State,
 }
 
+pub struct PreparedUi {
+    paint_jobs: Vec<egui::ClippedPrimitive>,
+    textures_delta: egui::TexturesDelta,
+    screen_descriptor: ScreenDescriptor,
+}
+
 impl EguiIntegration {
     pub fn new(
         device: &wgpu::Device,
@@ -35,17 +41,13 @@ impl EguiIntegration {
         self.state.on_window_event(window, event).consumed
     }
 
-    pub fn render(
+    pub fn begin(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView,
         window: &Window,
         config_width: u32,
         config_height: u32,
         ui_fn: impl FnOnce(&egui::Context),
-    ) {
+    ) -> PreparedUi {
         let raw_input = self.state.take_egui_input(window);
         self.context.begin_pass(raw_input);
 
@@ -63,12 +65,27 @@ impl EguiIntegration {
             pixels_per_point: self.context.pixels_per_point(),
         };
 
-        for (id, image_delta) in &egui_output.textures_delta.set {
+        PreparedUi {
+            paint_jobs,
+            textures_delta: egui_output.textures_delta,
+            screen_descriptor,
+        }
+    }
+
+    pub fn paint(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        prepared: PreparedUi,
+    ) {
+        for (id, image_delta) in &prepared.textures_delta.set {
             self.renderer
                 .update_texture(device, queue, *id, image_delta);
         }
 
-        for id in &egui_output.textures_delta.free {
+        for id in &prepared.textures_delta.free {
             self.renderer.free_texture(id);
         }
 
@@ -76,8 +93,8 @@ impl EguiIntegration {
             device,
             queue,
             encoder,
-            &paint_jobs,
-            &screen_descriptor,
+            &prepared.paint_jobs,
+            &prepared.screen_descriptor,
         );
 
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -97,8 +114,8 @@ impl EguiIntegration {
         });
         self.renderer.render(
             &mut render_pass.forget_lifetime(),
-            &paint_jobs,
-            &screen_descriptor,
+            &prepared.paint_jobs,
+            &prepared.screen_descriptor,
         );
     }
 }

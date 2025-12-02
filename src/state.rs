@@ -1,13 +1,58 @@
 use crate::rendering::{
-    render_scene, CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingSettings,
-    MeshBuffers, Pipeline,
+    render_scene, CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingControls,
+    LightingSettings, MeshBuffers, Pipeline,
 };
 use crate::scene::{self, Camera, Scene};
-use crate::ui::EguiIntegration;
-use glam::{Quat, Vec3};
+use crate::ui::{panels, CameraDebugInfo, EguiIntegration};
+use glam::Quat;
 use std::time::Instant;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::window::Window;
+
+#[derive(Default)]
+struct CameraController {
+    mouse_dragging: bool,
+    last_mouse_pos: Option<(f32, f32)>,
+}
+
+impl CameraController {
+    fn handle_event(&mut self, camera: &mut Camera, event: &WindowEvent) -> bool {
+        match event {
+            WindowEvent::MouseInput {
+                state,
+                button: MouseButton::Left,
+                ..
+            } => {
+                self.mouse_dragging = *state == ElementState::Pressed;
+                if !self.mouse_dragging {
+                    self.last_mouse_pos = None;
+                }
+                true
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                if self.mouse_dragging {
+                    if let Some((last_x, last_y)) = self.last_mouse_pos {
+                        let delta_x = position.x as f32 - last_x;
+                        let delta_y = position.y as f32 - last_y;
+                        camera.handle_mouse_drag(delta_x * 0.005, delta_y * 0.005);
+                    }
+                    self.last_mouse_pos = Some((position.x as f32, position.y as f32));
+                    return true;
+                }
+                false
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let scroll_amount = match delta {
+                    winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
+                    winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
+                };
+                camera.handle_scroll(scroll_amount);
+                true
+            }
+            _ => false,
+        }
+    }
+}
 
 pub struct State {
     gpu: GpuContext,
@@ -20,9 +65,8 @@ pub struct State {
     ui: EguiIntegration,
     scene: Scene,
     camera: Camera,
-    lighting: LightingSettings,
-    mouse_dragging: bool,
-    last_mouse_pos: Option<(f32, f32)>,
+    lighting_controls: LightingControls,
+    camera_controller: CameraController,
     window: std::sync::Arc<Window>,
     start_time: Instant,
 }
@@ -57,7 +101,7 @@ impl State {
         let aspect_ratio = size.width as f32 / size.height as f32;
         let camera = Camera::new(aspect_ratio);
 
-        let lighting = LightingSettings::default();
+        let lighting_controls = LightingControls::default();
 
         let ui = EguiIntegration::new(&gpu.device, gpu.config.format, &window);
 
@@ -72,9 +116,8 @@ impl State {
             ui,
             scene,
             camera,
-            lighting,
-            mouse_dragging: false,
-            last_mouse_pos: None,
+            lighting_controls,
+            camera_controller: CameraController::default(),
             window,
             start_time: Instant::now(),
         }
@@ -86,43 +129,8 @@ impl State {
             return true;
         }
 
-        // Handle mouse input for camera controls
-        match event {
-            WindowEvent::MouseInput {
-                state,
-                button: MouseButton::Left,
-                ..
-            } => {
-                self.mouse_dragging = *state == ElementState::Pressed;
-                if !self.mouse_dragging {
-                    self.last_mouse_pos = None;
-                }
-                return true;
-            }
-            WindowEvent::CursorMoved { position, .. } => {
-                if self.mouse_dragging {
-                    if let Some((last_x, last_y)) = self.last_mouse_pos {
-                        let delta_x = position.x as f32 - last_x;
-                        let delta_y = position.y as f32 - last_y;
-                        self.camera.handle_mouse_drag(delta_x * 0.005, delta_y * 0.005);
-                    }
-                    self.last_mouse_pos = Some((position.x as f32, position.y as f32));
-                    return true;
-                }
-            }
-            WindowEvent::MouseWheel { delta, .. } => {
-                let scroll_amount = match delta {
-                    winit::event::MouseScrollDelta::LineDelta(_, y) => *y,
-                    winit::event::MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
-                };
-                self.camera.handle_scroll(scroll_amount);
-                return true;
-            }
-            _ => {}
-        }
-
-        // Pass remaining events to UI
-        self.ui.handle_event(&*self.window, event)
+        self.camera_controller
+            .handle_event(&mut self.camera, event)
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -172,6 +180,44 @@ impl State {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        // Calculate camera position from spherical coordinates (UI readout)
+        let cam_x = self.camera.target.x
+            + self.camera.distance * self.camera.pitch.cos() * self.camera.yaw.sin();
+        let cam_y = self.camera.target.y + self.camera.distance * self.camera.pitch.sin();
+        let cam_z = self.camera.target.z
+            + self.camera.distance * self.camera.pitch.cos() * self.camera.yaw.cos();
+
+        let camera_debug = CameraDebugInfo {
+            position: [cam_x, cam_y, cam_z],
+            target: self.camera.target.to_array(),
+            yaw: self.camera.yaw,
+            pitch: self.camera.pitch,
+            distance: self.camera.distance,
+            object_count: self.scene.nodes.len(),
+        };
+
+        let prepared_ui = {
+            let lighting_controls = &mut self.lighting_controls;
+
+            self.ui.begin(
+                &*self.window,
+                self.gpu.config.width,
+                self.gpu.config.height,
+                move |ctx| {
+                    egui::Window::new("Scene Graph Demo")
+                        .default_pos([10.0, 10.0])
+                        .show(ctx, |ui| {
+                            panels::camera_debug(ui, &camera_debug);
+                            ui.separator();
+                            panels::lighting(ui, lighting_controls);
+                        });
+                },
+            )
+        };
+
+        // Sync lighting controls into engine settings for this frame
+        let lighting_settings: LightingSettings = (&self.lighting_controls).into();
+
         // Render scene
         render_scene(
             &mut encoder,
@@ -185,84 +231,16 @@ impl State {
             &self.gpu.queue,
             &self.scene,
             &self.camera,
-            &self.lighting.to_uniform(),
+            &lighting_settings.to_uniform(),
         );
 
-        // Render egui UI
-        // Calculate camera position from spherical coordinates
-        let cam_x = self.camera.target.x
-            + self.camera.distance * self.camera.pitch.cos() * self.camera.yaw.sin();
-        let cam_y = self.camera.target.y + self.camera.distance * self.camera.pitch.sin();
-        let cam_z = self.camera.target.z
-            + self.camera.distance * self.camera.pitch.cos() * self.camera.yaw.cos();
-
-        let target = self.camera.target;
-        let yaw = self.camera.yaw;
-        let pitch = self.camera.pitch;
-        let distance = self.camera.distance;
-        let object_count = self.scene.nodes.len();
-
-        let lighting = &mut self.lighting;
-
-        self.ui.render(
+        // Render egui UI overlay
+        self.ui.paint(
             &self.gpu.device,
             &self.gpu.queue,
             &mut encoder,
             &view,
-            &*self.window,
-            self.gpu.config.width,
-            self.gpu.config.height,
-            move |ctx| {
-                egui::Window::new("Scene Graph Demo")
-                    .default_pos([10.0, 10.0])
-                    .show(ctx, |ui| {
-                        ui.label("Left-click and drag to orbit camera");
-                        ui.label("Scroll wheel to zoom in/out");
-                        ui.separator();
-                        ui.monospace(format!("pos({:.2}, {:.2}, {:.2})", cam_x, cam_y, cam_z));
-                        ui.monospace(format!("look({:.2}, {:.2}, {:.2})",
-                            target.x, target.y, target.z));
-                        ui.monospace(format!("yaw:{:.2} pitch:{:.2} dist:{:.2}",
-                            yaw, pitch, distance));
-                        ui.monospace(format!("objects: {}", object_count));
-
-                        ui.separator();
-                        ui.label("Lighting");
-
-                        // Sun color
-                        let mut sun_color = lighting.sun_color.to_array();
-                        if ui.color_edit_button_rgb(&mut sun_color).changed() {
-                            lighting.sun_color = Vec3::from_array(sun_color);
-                        }
-
-                        // Sun intensity
-                        ui.add(egui::Slider::new(&mut lighting.sun_intensity, 0.0..=5.0).text("Sun intensity"));
-
-                        // Sun direction
-                        let mut dir = lighting.sun_direction.to_array();
-                        ui.horizontal(|ui| {
-                            ui.label("Sun dir");
-                            ui.add(egui::DragValue::new(&mut dir[0]).speed(0.01).range(-1.0..=1.0));
-                            ui.add(egui::DragValue::new(&mut dir[1]).speed(0.01).range(-1.0..=1.0));
-                            ui.add(egui::DragValue::new(&mut dir[2]).speed(0.01).range(-1.0..=1.0));
-                        });
-                        let new_dir = Vec3::from_array(dir).normalize_or_zero();
-                        if new_dir.length() > 0.0 {
-                            lighting.sun_direction = new_dir;
-                        }
-
-                        // Horizon color
-                        let mut horizon_color = lighting.horizon_color.to_array();
-                        if ui.color_edit_button_rgb(&mut horizon_color).changed() {
-                            lighting.horizon_color = Vec3::from_array(horizon_color);
-                        }
-
-                        ui.add(
-                            egui::Slider::new(&mut lighting.ambient_height, 0.1..=20.0)
-                                .text("Ambient height"),
-                        );
-                    });
-            },
+            prepared_ui,
         );
 
         self.gpu.queue.submit(std::iter::once(encoder.finish()));
