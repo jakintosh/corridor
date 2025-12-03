@@ -11,7 +11,7 @@ pub fn network_to_scene(network: &Network) -> Scene {
 
     // Add meshes (reusable geometry)
     scene.meshes.push(Mesh::cube()); // mesh_id = 0 (nodes)
-    scene.meshes.push(Mesh::line_segment(0.05)); // mesh_id = 1 (edges)
+    scene.meshes.push(Mesh::line_segment(0.125)); // mesh_id = 1 (edges)
 
     // Add materials with color coding BY MODE
     scene.materials.push(Material::from_rgb(0.8, 0.8, 0.8)); // Nodes - gray (material_id = 0)
@@ -24,10 +24,10 @@ pub fn network_to_scene(network: &Network) -> Scene {
     // Use different Y heights to prevent z-fighting when edges overlap
     // Keep close to node Y=0.1 so edges connect to nodes
     let mode_heights = [
-        (TransportMode::Car, 0.1001),
-        (TransportMode::Bike, 0.1002),
-        (TransportMode::Walk, 0.1003),
-        (TransportMode::Transit, 0.1004),
+        (TransportMode::Car, 0.2),
+        (TransportMode::Bike, 0.4),
+        (TransportMode::Walk, 0.6),
+        (TransportMode::Transit, 0.8),
     ];
 
     // Render edges for each mode
