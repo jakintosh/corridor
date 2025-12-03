@@ -1,5 +1,5 @@
 use super::{Material, Scene, SceneNode, Transform};
-use crate::geometry::Mesh;
+use crate::graphics::geometry::Mesh;
 
 pub fn create_demo_scene() -> Scene {
     let mut scene = Scene::new();

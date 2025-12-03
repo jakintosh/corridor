@@ -1,4 +1,4 @@
-use crate::geometry::Mesh;
+use crate::graphics::geometry::Mesh;
 use bytemuck::{Pod, Zeroable};
 use wgpu::util::DeviceExt;
 

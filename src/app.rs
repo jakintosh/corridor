@@ -7,6 +7,7 @@ use winit::window::{Window, WindowId};
 pub struct App {
     state: Option<State>,
     window: Option<std::sync::Arc<Window>>,
+    graph_path: Option<String>,
 }
 
 impl App {
@@ -14,6 +15,15 @@ impl App {
         Self {
             state: None,
             window: None,
+            graph_path: None,
+        }
+    }
+
+    pub fn new_with_graph(graph_path: Option<String>) -> Self {
+        Self {
+            state: None,
+            window: None,
+            graph_path,
         }
     }
 
@@ -92,7 +102,7 @@ impl ApplicationHandler for App {
 
             // build state
             let window_ptr = std::sync::Arc::new(window);
-            let state = State::new(window_ptr.clone());
+            let state = State::new(window_ptr.clone(), self.graph_path.as_deref());
             let state = Some(pollster::block_on(state));
             self.state = state;
             self.window = Some(window_ptr);

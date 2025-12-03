@@ -1,7 +1,5 @@
-use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers};
-use crate::scene::{Camera, Scene};
-use crate::rendering::buffers::LightingBuffer;
-use crate::rendering::LightingUniform;
+use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers, LightingBuffer, LightingUniform};
+use crate::graphics::scene::{Camera, Scene};
 
 pub fn render_scene(
     encoder: &mut wgpu::CommandEncoder,

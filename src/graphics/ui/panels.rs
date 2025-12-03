@@ -1,4 +1,4 @@
-use crate::rendering::LightingControls;
+use crate::graphics::rendering::LightingControls;
 use egui::Ui;
 
 #[derive(Clone, Copy)]

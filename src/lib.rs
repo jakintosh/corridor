@@ -1,10 +1,9 @@
 mod app;
-mod geometry;
-mod rendering;
-mod scene;
-mod shaders;
+mod graphics;
+mod model;
 mod state;
-mod ui;
+
+pub use model::{Network, ModeGraph, Node, Edge, NodeType, TransportMode};
 
 use app::App;
 use winit::event_loop::EventLoop;
@@ -16,6 +15,13 @@ use winit::platform::web::EventLoopExtWebSys;
 pub fn run_native() {
     let event_loop = EventLoop::new().expect("Failed to create event loop");
     let mut app = App::new();
+    let _ = event_loop.run_app(&mut app);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run_native_with_graph(path: &str) {
+    let event_loop = EventLoop::new().expect("Failed to create event loop");
+    let mut app = App::new_with_graph(Some(path.to_string()));
     let _ = event_loop.run_app(&mut app);
 }
 

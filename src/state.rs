@@ -1,9 +1,10 @@
-use crate::rendering::{
-    render_scene, CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingControls,
-    LightingSettings, MeshBuffers, Pipeline,
+use crate::graphics::scene::{self, Camera, Scene};
+use crate::graphics::{
+    CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingControls, LightingSettings,
+    MeshBuffers, Pipeline, render_scene,
 };
-use crate::scene::{self, Camera, Scene};
-use crate::ui::{panels, CameraDebugInfo, EguiIntegration};
+use crate::graphics::{CameraDebugInfo, EguiIntegration, panels};
+use crate::model::Network;
 use glam::Quat;
 use instant::Instant;
 use winit::event::{ElementState, MouseButton, WindowEvent};
@@ -72,14 +73,18 @@ pub struct State {
 }
 
 impl State {
-    pub async fn new(window: std::sync::Arc<Window>) -> Self {
+    pub async fn new(window: std::sync::Arc<Window>, graph_path: Option<&str>) -> Self {
         let size = window.inner_size();
         let gpu = GpuContext::new(&window).await;
 
         let pipeline = Pipeline::new(&gpu.device, gpu.config.format);
 
-        // Create demo scene
-        let scene = scene::demo::create_demo_scene();
+        // Create scene from network file or use demo scene
+        let scene = if let Some(path) = graph_path {
+            load_network_scene(path)
+        } else {
+            scene::demo::create_demo_scene()
+        };
 
         // Create mesh buffers for all meshes in the scene
         let mesh_buffers: Vec<MeshBuffers> = scene
@@ -89,13 +94,14 @@ impl State {
             .collect();
 
         // Create instance buffer with capacity for all nodes
-        let instance_buffer = InstanceBuffer::new(&gpu.device, 100);
+        let instance_buffer = InstanceBuffer::new(&gpu.device, 1000);
 
         // Create camera buffer
         let camera_buffer = CameraBuffer::new(&gpu.device, &pipeline.camera_bind_group_layout);
 
         // Create lighting buffer
-        let lighting_buffer = LightingBuffer::new(&gpu.device, &pipeline.lighting_bind_group_layout);
+        let lighting_buffer =
+            LightingBuffer::new(&gpu.device, &pipeline.lighting_bind_group_layout);
 
         // Create camera
         let aspect_ratio = size.width as f32 / size.height as f32;
@@ -129,8 +135,7 @@ impl State {
             return true;
         }
 
-        self.camera_controller
-            .handle_event(&mut self.camera, event)
+        self.camera_controller.handle_event(&mut self.camera, event)
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -138,14 +143,13 @@ impl State {
             self.size = new_size;
             self.gpu.config.width = new_size.width;
             self.gpu.config.height = new_size.height;
-            self.gpu.surface.configure(&self.gpu.device, &self.gpu.config);
+            self.gpu
+                .surface
+                .configure(&self.gpu.device, &self.gpu.config);
 
             // Recreate depth texture with new size
-            self.gpu.depth_texture = GpuContext::create_depth_texture(
-                &self.gpu.device,
-                new_size.width,
-                new_size.height,
-            );
+            self.gpu.depth_texture =
+                GpuContext::create_depth_texture(&self.gpu.device, new_size.width, new_size.height);
 
             // Update camera aspect ratio
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
@@ -153,21 +157,7 @@ impl State {
         }
     }
 
-    pub fn update(&mut self) {
-        let time = self.start_time.elapsed().as_secs_f32();
-
-        // Animate specific nodes (indices 1, 2, 3 are the animated cubes)
-        if self.scene.nodes.len() > 1 {
-            self.scene.nodes[1].transform.rotation = Quat::from_rotation_y(time * 1.0);
-        }
-        if self.scene.nodes.len() > 2 {
-            self.scene.nodes[2].transform.rotation = Quat::from_rotation_x(time * 1.5);
-        }
-        if self.scene.nodes.len() > 3 {
-            self.scene.nodes[3].transform.rotation =
-                Quat::from_euler(glam::EulerRot::ZYX, time * 0.5, time * 1.3, time * 0.7);
-        }
-    }
+    pub fn update(&mut self) {}
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let surface_output = self.gpu.surface.get_current_texture()?;
@@ -248,4 +238,11 @@ impl State {
 
         Ok(())
     }
+}
+
+fn load_network_scene(path: &str) -> Scene {
+    let json =
+        std::fs::read_to_string(path).expect(&format!("Failed to read network file: {}", path));
+    let network: Network = serde_json::from_str(&json).expect("Failed to parse network JSON");
+    scene::network::network_to_scene(&network)
 }

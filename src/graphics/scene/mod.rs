@@ -3,13 +3,14 @@ mod material;
 mod node;
 mod transform;
 pub mod demo;
+pub mod network;
 
 pub use camera::Camera;
 pub use material::Material;
 pub use node::SceneNode;
 pub use transform::Transform;
 
-use crate::geometry::Mesh;
+use crate::graphics::geometry::Mesh;
 
 pub struct Scene {
     pub meshes: Vec<Mesh>,

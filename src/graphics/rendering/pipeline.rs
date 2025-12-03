@@ -1,6 +1,6 @@
-use crate::geometry::Vertex;
-use crate::rendering::buffers::InstanceData;
-use crate::shaders;
+use crate::graphics::geometry::Vertex;
+use super::buffers::InstanceData;
+use crate::graphics::shaders;
 
 pub struct Pipeline {
     pub render_pipeline: wgpu::RenderPipeline,
