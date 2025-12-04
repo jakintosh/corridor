@@ -8,6 +8,11 @@ import numpy as np
 from scipy.spatial import Voronoi
 
 
+# Tweakable percentages for pruning steps
+NODE_REMOVAL_FRACTION = 0.10
+EDGE_REMOVAL_FRACTION = 0.20
+
+
 def generate_city_points(num_points: int, width: float, height: float, iterations: int = 2) -> np.ndarray:
     """Generate seed points with a gentle center bias then smooth with Lloyd relaxation."""
     points: List[List[float]] = []
@@ -101,6 +106,43 @@ def knock_out_edges(base_edges: Sequence[Tuple[int, int]], removal_fraction: flo
     return [edge for idx, edge in enumerate(base_edges) if idx not in to_remove]
 
 
+def prune_nodes_for_mode(nodes: List[Dict], base_edges: Sequence[Tuple[int, int]], removal_fraction: float):
+    """Remove a fraction of nodes for a mode, along with any incident edges."""
+    if not nodes or removal_fraction <= 0:
+        return [dict(node) for node in nodes], list(base_edges)
+
+    node_ids = [node["id"] for node in nodes]
+    remove_count = min(len(node_ids), int(len(node_ids) * removal_fraction))
+    removed_ids = set(random.sample(node_ids, remove_count)) if remove_count else set()
+
+    remaining_nodes = [dict(node) for node in nodes if node["id"] not in removed_ids]
+    remaining_edges = [edge for edge in base_edges if edge[0] not in removed_ids and edge[1] not in removed_ids]
+    return remaining_nodes, remaining_edges
+
+
+def reindex_nodes_and_edges(nodes: List[Dict], edges: Sequence[Tuple[int, int]]) -> Tuple[List[Dict], List[Tuple[int, int]]]:
+    """Drop isolated nodes and remap node IDs so edges stay in-bounds."""
+    if not edges:
+        return [], []
+
+    connected_ids = set()
+    for src, dst in edges:
+        connected_ids.add(src)
+        connected_ids.add(dst)
+
+    filtered_nodes = [dict(node) for node in nodes if node["id"] in connected_ids]
+    id_map = {node["id"]: idx for idx, node in enumerate(filtered_nodes)}
+    for node in filtered_nodes:
+        node["id"] = id_map[node["id"]]
+
+    remapped_edges = []
+    for src, dst in edges:
+        if src in id_map and dst in id_map:
+            remapped_edges.append((id_map[src], id_map[dst]))
+
+    return filtered_nodes, remapped_edges
+
+
 def generate_mode_graph(mode: str, nodes: List[Dict], base_edges: Sequence[Tuple[int, int]]) -> Dict:
     """Build a single mode graph from the shared base topology."""
     facility_types_by_mode = {
@@ -110,8 +152,9 @@ def generate_mode_graph(mode: str, nodes: List[Dict], base_edges: Sequence[Tuple
         "Car": ["Highway", "Arterial", "LocalStreet"],
     }
     facility_types = facility_types_by_mode.get(mode, ["Generic"])
-    removal_fraction = random.uniform(0.15, 0.35)
-    mode_edges_raw = knock_out_edges(base_edges, removal_fraction)
+    mode_nodes, node_pruned_edges = prune_nodes_for_mode(nodes, base_edges, NODE_REMOVAL_FRACTION)
+    mode_edges_raw = knock_out_edges(node_pruned_edges, EDGE_REMOVAL_FRACTION)
+    mode_nodes, mode_edges_raw = reindex_nodes_and_edges(mode_nodes, mode_edges_raw)
 
     edges = []
     for edge_id, (src, dst) in enumerate(mode_edges_raw):
@@ -125,7 +168,7 @@ def generate_mode_graph(mode: str, nodes: List[Dict], base_edges: Sequence[Tuple
             }
         )
 
-    return {"mode": mode, "nodes": nodes, "edges": edges}
+    return {"mode": mode, "nodes": mode_nodes, "edges": edges}
 
 
 def generate_network(n: int, modes=None):

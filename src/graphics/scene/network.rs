@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use glam::Vec3;
 
 use crate::graphics::geometry::Mesh;
@@ -23,15 +21,15 @@ pub fn network_to_scene(network: &Network) -> Scene {
     // Render all mode graphs
     // Use different Y heights to prevent z-fighting when edges overlap
     // Keep close to node Y=0.1 so edges connect to nodes
-    let mode_heights = [
-        (TransportMode::Car, 0.2),
-        (TransportMode::Bike, 0.4),
-        (TransportMode::Walk, 0.6),
-        (TransportMode::Transit, 0.8),
+    let modes = [
+        (TransportMode::Car),
+        (TransportMode::Bike),
+        (TransportMode::Walk),
+        (TransportMode::Transit),
     ];
 
     // Render edges for each mode
-    for (mode, height) in &mode_heights {
+    for mode in &modes {
         if let Some(graph) = network.graphs.get(mode) {
             for edge in &graph.edges {
                 let from = &graph.nodes[edge.from_node];
@@ -40,7 +38,7 @@ pub fn network_to_scene(network: &Network) -> Scene {
                 scene.nodes.push(SceneNode::new(
                     1, // line mesh
                     mode_material_id(*mode),
-                    edge_transform(from.position, to.position, *height),
+                    edge_transform(from.position, to.position, mode_height(*mode)),
                 ));
             }
         }
@@ -54,7 +52,7 @@ pub fn network_to_scene(network: &Network) -> Scene {
                 0,   // cube mesh
                 mat, // gray material
                 Transform::new(
-                    [node.position[0], 0.1, node.position[1]],
+                    [node.position[0], mode_height(graph.mode), node.position[1]],
                     [0.0, 0.0, 0.0],
                     [0.15, 0.15, 0.15], // Small cube
                 ),
@@ -71,6 +69,15 @@ fn mode_material_id(mode: TransportMode) -> usize {
         TransportMode::Walk => 2,
         TransportMode::Transit => 3,
         TransportMode::Car => 4,
+    }
+}
+
+fn mode_height(mode: TransportMode) -> f32 {
+    match mode {
+        TransportMode::Car => 0.2,
+        TransportMode::Bike => 0.4,
+        TransportMode::Walk => 0.6,
+        TransportMode::Transit => 0.8,
     }
 }
 
