@@ -5,7 +5,6 @@ use crate::graphics::{
 };
 use crate::graphics::{CameraDebugInfo, EguiIntegration, panels};
 use crate::model::Network;
-use glam::Quat;
 use instant::Instant;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::window::Window;
@@ -69,21 +68,19 @@ pub struct State {
     lighting_controls: LightingControls,
     camera_controller: CameraController,
     window: std::sync::Arc<Window>,
-    start_time: Instant,
 }
 
 impl State {
-    pub async fn new(window: std::sync::Arc<Window>, graph_path: Option<&str>) -> Self {
+    pub async fn new(window: std::sync::Arc<Window>, network: Option<Network>) -> Self {
         let size = window.inner_size();
         let gpu = GpuContext::new(&window).await;
 
         let pipeline = Pipeline::new(&gpu.device, gpu.config.format);
 
-        // Create scene from network file or use demo scene
-        let scene = if let Some(path) = graph_path {
-            load_network_scene(path)
-        } else {
-            scene::demo::create_demo_scene()
+        // Create scene from network or use demo scene
+        let scene = match network {
+            Some(network) => scene::network::network_to_scene(&network),
+            None => scene::demo::create_demo_scene(),
         };
 
         // Create mesh buffers for all meshes in the scene
@@ -125,7 +122,6 @@ impl State {
             lighting_controls,
             camera_controller: CameraController::default(),
             window,
-            start_time: Instant::now(),
         }
     }
 
@@ -238,11 +234,4 @@ impl State {
 
         Ok(())
     }
-}
-
-fn load_network_scene(path: &str) -> Scene {
-    let json =
-        std::fs::read_to_string(path).expect(&format!("Failed to read network file: {}", path));
-    let network: Network = serde_json::from_str(&json).expect("Failed to parse network JSON");
-    scene::network::network_to_scene(&network)
 }

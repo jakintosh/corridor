@@ -1,16 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <title>corridor</title>
-    <style>
-      body { margin: 0; }
-    </style>
-  </head>
-  <body>
-    <script type="module">
-      import init from "./pkg/corridor.js";
-      init();
-    </script>
-  </body>
+    <head>
+        <meta charset="utf-8" />
+        <title>corridor</title>
+        <style>
+            body {
+                margin: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <script type="module">
+            import init, { wasm_start } from "./pkg/corridor.js";
+
+            // Initialize the WASM module and start the app
+            init().then(async () => {
+                try {
+                    // Try to load default network configuration
+                    const response = await fetch("./data/default-network.json");
+                    if (response.ok) {
+                        const network = await response.json();
+                        wasm_start({ network });
+                    } else {
+                        // If network file not found, start with demo scene
+                        wasm_start();
+                    }
+                } catch (error) {
+                    // If fetch fails, start with demo scene
+                    console.log("No default network found, using demo scene");
+                    wasm_start();
+                }
+            });
+        </script>
+    </body>
 </html>

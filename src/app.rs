@@ -1,3 +1,4 @@
+use crate::config::AppConfig;
 use crate::state::State;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -7,23 +8,19 @@ use winit::window::{Window, WindowId};
 pub struct App {
     state: Option<State>,
     window: Option<std::sync::Arc<Window>>,
-    graph_path: Option<String>,
+    config: AppConfig,
 }
 
 impl App {
     pub fn new() -> Self {
-        Self {
-            state: None,
-            window: None,
-            graph_path: None,
-        }
+        Self::new_with_config(AppConfig::default())
     }
 
-    pub fn new_with_graph(graph_path: Option<String>) -> Self {
+    pub fn new_with_config(config: AppConfig) -> Self {
         Self {
             state: None,
             window: None,
-            graph_path,
+            config,
         }
     }
 
@@ -102,7 +99,7 @@ impl ApplicationHandler for App {
 
             // build state
             let window_ptr = std::sync::Arc::new(window);
-            let state = State::new(window_ptr.clone(), self.graph_path.as_deref());
+            let state = State::new(window_ptr.clone(), self.config.network.take());
             let state = Some(pollster::block_on(state));
             self.state = state;
             self.window = Some(window_ptr);
