@@ -144,14 +144,11 @@ impl ApplicationHandler for App {
                         Err(e) => eprintln!("{:?}", e),
                     }
                 }
+                if let Some(ref w) = self.window {
+                    w.request_redraw();
+                }
             }
             _ => {}
-        }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(ref w) = self.window {
-            w.request_redraw();
         }
     }
 }
