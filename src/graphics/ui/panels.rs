@@ -41,17 +41,27 @@ pub fn lighting(ui: &mut Ui, controls: &mut LightingControls) {
     }
 
     // Sun intensity
-    ui.add(
-        egui::Slider::new(&mut controls.sun_intensity, 0.0..=5.0).text("Sun intensity"),
-    );
+    ui.add(egui::Slider::new(&mut controls.sun_intensity, 0.0..=5.0).text("Sun intensity"));
 
     // Sun direction
     let mut dir = controls.sun_direction.to_array();
     ui.horizontal(|ui| {
         ui.label("Sun dir");
-        ui.add(egui::DragValue::new(&mut dir[0]).speed(0.01).range(-1.0..=1.0));
-        ui.add(egui::DragValue::new(&mut dir[1]).speed(0.01).range(-1.0..=1.0));
-        ui.add(egui::DragValue::new(&mut dir[2]).speed(0.01).range(-1.0..=1.0));
+        ui.add(
+            egui::DragValue::new(&mut dir[0])
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        );
+        ui.add(
+            egui::DragValue::new(&mut dir[1])
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        );
+        ui.add(
+            egui::DragValue::new(&mut dir[2])
+                .speed(0.01)
+                .range(-1.0..=1.0),
+        );
     });
     controls.sun_direction = glam::Vec3::from_array(dir);
 
@@ -61,7 +71,5 @@ pub fn lighting(ui: &mut Ui, controls: &mut LightingControls) {
         controls.horizon_color = glam::Vec3::from_array(horizon_color);
     }
 
-    ui.add(
-        egui::Slider::new(&mut controls.ambient_height, 0.1..=20.0).text("Ambient height"),
-    );
+    ui.add(egui::Slider::new(&mut controls.ambient_height, 0.1..=20.0).text("Ambient height"));
 }

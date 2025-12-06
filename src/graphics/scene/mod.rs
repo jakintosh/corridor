@@ -1,9 +1,9 @@
 mod camera;
+pub mod demo;
 mod material;
+pub mod network;
 mod node;
 mod transform;
-pub mod demo;
-pub mod network;
 
 pub use camera::Camera;
 pub use material::Material;

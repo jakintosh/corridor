@@ -1,5 +1,5 @@
-use crate::graphics::geometry::Vertex;
 use super::buffers::InstanceData;
+use crate::graphics::geometry::Vertex;
 use crate::graphics::shaders;
 
 pub struct Pipeline {

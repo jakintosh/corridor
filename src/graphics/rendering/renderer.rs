@@ -1,4 +1,6 @@
-use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers, LightingBuffer, LightingUniform};
+use super::buffers::{
+    CameraBuffer, InstanceBuffer, InstanceData, LightingBuffer, LightingUniform, MeshBuffers,
+};
 use crate::graphics::scene::{Camera, Scene};
 
 pub fn render_scene(
@@ -81,10 +83,8 @@ pub fn render_scene(
             if let Some(mesh_id) = current_mesh {
                 let mesh_buf = &mesh_buffers[mesh_id];
                 render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
-                render_pass.set_index_buffer(
-                    mesh_buf.index_buffer.slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
+                render_pass
+                    .set_index_buffer(mesh_buf.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                 render_pass.draw_indexed(
                     0..mesh_buf.index_count,
                     0,
@@ -105,10 +105,7 @@ pub fn render_scene(
     if let Some(mesh_id) = current_mesh {
         let mesh_buf = &mesh_buffers[mesh_id];
         render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(
-            mesh_buf.index_buffer.slice(..),
-            wgpu::IndexFormat::Uint32,
-        );
+        render_pass.set_index_buffer(mesh_buf.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(
             0..mesh_buf.index_count,
             0,

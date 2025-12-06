@@ -107,10 +107,7 @@ pub struct CameraBuffer {
 }
 
 impl CameraBuffer {
-    pub fn new(
-        device: &wgpu::Device,
-        bind_group_layout: &wgpu::BindGroupLayout,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> Self {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Camera Buffer"),
             size: 64, // mat4x4<f32> = 16 floats * 4 bytes = 64 bytes
