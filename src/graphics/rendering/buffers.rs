@@ -7,6 +7,7 @@ use wgpu::util::DeviceExt;
 pub struct InstanceData {
     pub matrix: [[f32; 4]; 4],
     pub color: [f32; 4],
+    pub node_id: u32,
 }
 
 impl InstanceData {
@@ -41,6 +42,12 @@ impl InstanceData {
                     format: wgpu::VertexFormat::Float32x4,
                     offset: 64,
                     shader_location: 6,
+                },
+                // Node ID
+                wgpu::VertexAttribute {
+                    format: wgpu::VertexFormat::Uint32,
+                    offset: 80,
+                    shader_location: 7,
                 },
             ],
         }

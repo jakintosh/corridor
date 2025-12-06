@@ -28,10 +28,15 @@ pub fn render_scene(
     let instance_data: Vec<InstanceData> = scene
         .nodes
         .iter()
-        .map(|node| {
+        .enumerate()
+        .map(|(idx, node)| {
             let matrix = node.transform.to_matrix();
             let color = scene.materials[node.material_id].color;
-            InstanceData { matrix, color }
+            InstanceData {
+                matrix,
+                color,
+                node_id: idx as u32,
+            }
         })
         .collect();
 
