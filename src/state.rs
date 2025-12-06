@@ -1,11 +1,12 @@
 use crate::graphics::scene::{self, Camera, Scene};
 use crate::graphics::{
-    CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingControls, LightingSettings,
-    MeshBuffers, Pipeline, render_scene, PickingPass,
+    CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
+    LightingSettings, MeshBuffers, PickingPass, Pipeline, render_scene,
 };
 use crate::graphics::{CameraDebugInfo, EguiIntegration, panels};
 use crate::model::Network;
 use winit::event::{ElementState, MouseButton, WindowEvent};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
 
 #[derive(Default)]
@@ -53,6 +54,11 @@ impl CameraController {
     }
 }
 
+fn is_space_key(key: &Key) -> bool {
+    matches!(key, Key::Named(NamedKey::Space))
+        || matches!(key, Key::Character(character) if character == " ")
+}
+
 pub struct State {
     gpu: GpuContext,
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -69,6 +75,7 @@ pub struct State {
     window: std::sync::Arc<Window>,
     picking_pass: PickingPass,
     last_cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
+    show_picking_overlay: bool,
 }
 
 impl State {
@@ -133,6 +140,7 @@ impl State {
             window,
             picking_pass,
             last_cursor_position: None,
+            show_picking_overlay: false,
         }
     }
 
@@ -147,6 +155,13 @@ impl State {
             self.last_cursor_position = Some(*position);
         }
 
+        if let WindowEvent::KeyboardInput { event, .. } = event {
+            if is_space_key(&event.logical_key) {
+                self.show_picking_overlay = event.state == ElementState::Pressed;
+                return true;
+            }
+        }
+
         // Handle picking on left click (if not currently dragging)
         if let WindowEvent::MouseInput {
             state: ElementState::Pressed,
@@ -157,12 +172,8 @@ impl State {
             if !self.camera_controller.mouse_dragging {
                 if let Some(pos) = self.last_cursor_position {
                     let scale = self.window.scale_factor();
-                    self.picking_pass.request_pick(
-                        pos.x as u32,
-                        pos.y as u32,
-                        scale,
-                        self.size.height,
-                    );
+                    self.picking_pass
+                        .request_pick(pos.x as u32, pos.y as u32, scale);
                 }
             }
             // Don't return - let camera controller also handle this event
@@ -185,7 +196,8 @@ impl State {
                 GpuContext::create_depth_texture(&self.gpu.device, new_size.width, new_size.height);
 
             // Recreate picking texture with new size
-            self.picking_pass.resize(&self.gpu.device, new_size.width, new_size.height);
+            self.picking_pass
+                .resize(&self.gpu.device, new_size.width, new_size.height);
 
             // Update camera aspect ratio
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
@@ -206,6 +218,27 @@ impl State {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
+        // Prepare per-frame buffers once for all passes
+        let view_proj = self.camera.view_projection_matrix();
+        self.camera_buffer.update(&self.gpu.queue, &view_proj);
+
+        let instance_data: Vec<InstanceData> = self
+            .scene
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(idx, node)| {
+                let matrix = node.transform.to_matrix();
+                let color = self.scene.materials[node.material_id].color;
+                InstanceData {
+                    matrix,
+                    color,
+                    node_id: idx as u32,
+                }
+            })
+            .collect();
+        self.instance_buffer.update(&self.gpu.queue, &instance_data);
+
         // Execute picking pass if requested (before main render)
         if self.picking_pass.should_execute() {
             self.picking_pass.execute_pick(
@@ -214,8 +247,6 @@ impl State {
                 &self.mesh_buffers,
                 &self.instance_buffer,
                 &self.camera_buffer,
-                &self.gpu.queue,
-                &self.camera,
                 &self.scene,
             );
         }
@@ -270,22 +301,17 @@ impl State {
             &self.lighting_buffer,
             &self.gpu.queue,
             &self.scene,
-            &self.camera,
             &lighting_settings.to_uniform(),
         );
 
-        // Visualize picking IDs in a small overlay to help debug hit issues.
-        self.picking_pass.render_debug_overlay(
-            &self.gpu.device,
-            &mut encoder,
-            &view,
-            &self.gpu.depth_texture,
-            self.gpu.config.format,
-            &self.mesh_buffers,
-            &self.instance_buffer,
-            &self.camera_buffer,
-            &self.scene,
-        );
+        if self.show_picking_overlay {
+            self.picking_pass.render_debug_overlay(
+                &self.gpu.device,
+                &mut encoder,
+                &view,
+                self.gpu.config.format,
+            );
+        }
 
         // Render egui UI overlay
         self.ui.paint(
@@ -316,7 +342,10 @@ impl State {
 
         if (node_id as usize) < self.scene.nodes.len() {
             let node = &self.scene.nodes[node_id as usize];
-            println!("Picked node {}: mesh={}, material={}", node_id, node.mesh_id, node.material_id);
+            println!(
+                "Picked node {}: mesh={}, material={}",
+                node_id, node.mesh_id, node.material_id
+            );
         }
     }
 }

@@ -18,7 +18,6 @@ struct VertexInput {
     @location(4) instance_matrix_2: vec4<f32>,
     @location(5) instance_matrix_3: vec4<f32>,
     @location(6) material_color: vec4<f32>,
-    @location(7) node_id: u32,
 }
 
 struct VertexOutput {

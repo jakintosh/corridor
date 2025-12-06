@@ -39,12 +39,11 @@ impl GpuContext {
         } else {
             wgpu::Limits::default()
         };
-        let required_features = wgpu::Features::empty();
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: Some("device"),
-                required_features,
+                required_features: wgpu::Features::empty(),
                 required_limits: limits,
                 ..Default::default()
             })

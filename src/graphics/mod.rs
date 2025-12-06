@@ -6,7 +6,7 @@ pub mod ui;
 
 // Re-export public graphics API for state.rs to use
 pub use rendering::{
-    render_scene, CameraBuffer, GpuContext, InstanceBuffer, LightingBuffer, LightingControls,
-    LightingSettings, MeshBuffers, PickingPass, Pipeline,
+    CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
+    LightingSettings, MeshBuffers, PickingPass, Pipeline, render_scene,
 };
-pub use ui::{panels, CameraDebugInfo, EguiIntegration};
+pub use ui::{CameraDebugInfo, EguiIntegration, panels};

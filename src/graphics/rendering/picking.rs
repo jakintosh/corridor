@@ -1,28 +1,25 @@
-use super::buffers::{CameraBuffer, InstanceBuffer, MeshBuffers};
-use crate::graphics::scene::{Camera, Scene};
-use crate::graphics::shaders;
+use super::buffers::{CameraBuffer, InstanceBuffer, InstanceData, MeshBuffers};
+use super::renderer::draw_batched_instances;
 use crate::graphics::geometry::Vertex;
-use super::buffers::InstanceData;
+use crate::graphics::scene::Scene;
+use crate::graphics::shaders;
 use std::sync::mpsc;
-
-#[cfg(target_arch = "wasm32")]
-fn log(msg: &str) {
-    web_sys::console::log_1(&msg.into());
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn log(_msg: &str) {}
 
 pub struct PickingPass {
     pipeline: wgpu::RenderPipeline,
-    debug_pipeline: Option<(wgpu::RenderPipeline, wgpu::TextureFormat)>,
+    debug_pipeline: Option<DebugOverlayPipeline>,
     shader: wgpu::ShaderModule,
-    camera_bind_group_layout: wgpu::BindGroupLayout,
     picking_texture: wgpu::Texture,
     picking_view: wgpu::TextureView,
     readback_buffer: wgpu::Buffer,
     pending_pick: Option<PendingPick>,
     size: (u32, u32),
+}
+
+struct DebugOverlayPipeline {
+    pipeline: wgpu::RenderPipeline,
+    bind_group_layout: wgpu::BindGroupLayout,
+    color_format: wgpu::TextureFormat,
 }
 
 struct PendingPick {
@@ -55,7 +52,9 @@ impl PickingPass {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::R32Uint,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
@@ -89,11 +88,11 @@ impl PickingPass {
             multiview: None,
             cache: None,
             vertex: wgpu::VertexState {
-            module: &shader,
-            entry_point: Some("vs_main"),
-            compilation_options: Default::default(),
-            buffers: &[Vertex::desc(), InstanceData::desc()],
-        },
+                module: &shader,
+                entry_point: Some("vs_main"),
+                compilation_options: Default::default(),
+                buffers: &[Vertex::desc(), InstanceData::picking_desc()],
+            },
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
@@ -112,12 +111,12 @@ impl PickingPass {
             }),
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
-            module: &shader,
-            entry_point: Some("fs_main"),
-            compilation_options: Default::default(),
-            targets: &[Some(wgpu::ColorTargetState {
-                format: wgpu::TextureFormat::R32Uint,
-                blend: None,
+                module: &shader,
+                entry_point: Some("fs_main"),
+                compilation_options: Default::default(),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::R32Uint,
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -127,7 +126,6 @@ impl PickingPass {
             pipeline,
             debug_pipeline: None,
             shader,
-            camera_bind_group_layout: camera_bind_group_layout.clone(),
             picking_texture,
             picking_view,
             readback_buffer,
@@ -136,9 +134,13 @@ impl PickingPass {
         }
     }
 
-    pub fn request_pick(&mut self, window_x: u32, window_y: u32, scale_factor: f64, _window_height: u32) {
+    pub fn request_pick(&mut self, window_x: u32, window_y: u32, scale_factor: f64) {
         // On native, winit's WindowEvent coords are already physical; on web, apply the scale factor.
-        let factor = if cfg!(target_arch = "wasm32") { scale_factor } else { 1.0 };
+        let factor = if cfg!(target_arch = "wasm32") {
+            scale_factor
+        } else {
+            1.0
+        };
         let physical_x = (window_x as f64 * factor) as u32;
         let physical_y = (window_y as f64 * factor) as u32;
 
@@ -155,12 +157,12 @@ impl PickingPass {
             map_requested: false,
             receiver: None,
         });
-
-        log(&format!("pick requested at ({}, {})", physical_x, texture_y));
     }
 
     pub fn should_execute(&self) -> bool {
-        self.pending_pick.as_ref().map_or(false, |p| !p.frame_submitted)
+        self.pending_pick
+            .as_ref()
+            .map_or(false, |p| !p.frame_submitted)
     }
 
     pub fn execute_pick(
@@ -170,8 +172,6 @@ impl PickingPass {
         mesh_buffers: &[MeshBuffers],
         instance_buffer: &InstanceBuffer,
         camera_buffer: &CameraBuffer,
-        queue: &wgpu::Queue,
-        camera: &Camera,
         scene: &Scene,
     ) {
         let pending = match &self.pending_pick {
@@ -180,26 +180,6 @@ impl PickingPass {
         };
 
         let (pixel_x, pixel_y) = pending.pixel_coords;
-
-        // Update uniforms/buffers needed for the picking pass
-        let view_proj = camera.view_projection_matrix();
-        camera_buffer.update(queue, &view_proj);
-
-        let instance_data: Vec<InstanceData> = scene
-            .nodes
-            .iter()
-            .enumerate()
-            .map(|(idx, node)| {
-                let matrix = node.transform.to_matrix();
-                let color = scene.materials[node.material_id].color;
-                InstanceData {
-                    matrix,
-                    color,
-                    node_id: idx as u32,
-                }
-            })
-            .collect();
-        instance_buffer.update(queue, &instance_data);
 
         // Begin render pass
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -234,22 +214,7 @@ impl PickingPass {
         render_pass.set_bind_group(0, &camera_buffer.bind_group, &[]);
         render_pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
 
-        // Draw each node individually; we rely on instance_index to encode the node ID.
-        for (node_idx, node) in scene.nodes.iter().enumerate() {
-            let mesh_buf = &mesh_buffers[node.mesh_id];
-            render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(
-                mesh_buf.index_buffer.slice(..),
-                wgpu::IndexFormat::Uint32,
-            );
-
-            // Draw single instance for this node
-            render_pass.draw_indexed(
-                0..mesh_buf.index_count,
-                0,
-                node_idx as u32..node_idx as u32 + 1,
-            );
-        }
+        draw_batched_instances(&mut render_pass, mesh_buffers, scene);
 
         drop(render_pass);
 
@@ -300,7 +265,6 @@ impl PickingPass {
             });
             pending.map_requested = true;
             pending.receiver = Some(receiver);
-            log("map_async requested");
             return None;
         }
 
@@ -320,7 +284,6 @@ impl PickingPass {
                 drop(data);
                 self.readback_buffer.unmap();
                 self.pending_pick = None;
-                log(&format!("pick result {}", value));
                 Some(value)
             }
             Ok(Err(_)) => {
@@ -331,7 +294,6 @@ impl PickingPass {
             Err(std::sync::mpsc::TryRecvError::Empty) => None,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
                 self.pending_pick = None;
-                log("map_async channel disconnected");
                 None
             }
         }
@@ -356,11 +318,15 @@ impl PickingPass {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::R32Uint,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[],
         });
 
-        self.picking_view = self.picking_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.picking_view = self
+            .picking_texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         self.size = (width, height);
     }
 
@@ -369,22 +335,22 @@ impl PickingPass {
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
-        depth_view: &wgpu::TextureView,
         color_format: wgpu::TextureFormat,
-        mesh_buffers: &[MeshBuffers],
-        instance_buffer: &InstanceBuffer,
-        camera_buffer: &CameraBuffer,
-        scene: &Scene,
     ) {
         self.ensure_debug_pipeline(device, color_format);
 
-        let (pipeline, _) = match &self.debug_pipeline {
-            Some(tuple) => tuple,
-            None => return,
+        let Some(debug) = &self.debug_pipeline else {
+            return;
         };
 
-        let overlay_width = self.size.0 as f32;
-        let overlay_height = self.size.1 as f32;
+        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Picking Debug Overlay Bind Group"),
+            layout: &debug.bind_group_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(&self.picking_view),
+            }],
+        });
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Picking Debug Overlay"),
@@ -397,49 +363,41 @@ impl PickingPass {
                 },
                 depth_slice: None,
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: depth_view,
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
         });
 
-        // Full-screen overlay for debug
-        render_pass.set_viewport(0.0, 0.0, overlay_width, overlay_height, 0.0, 1.0);
-        render_pass.set_pipeline(pipeline);
-        render_pass.set_bind_group(0, &camera_buffer.bind_group, &[]);
-        render_pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
-
-        for (node_idx, node) in scene.nodes.iter().enumerate() {
-            let mesh_buf = &mesh_buffers[node.mesh_id];
-            render_pass.set_vertex_buffer(0, mesh_buf.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(
-                mesh_buf.index_buffer.slice(..),
-                wgpu::IndexFormat::Uint32,
-            );
-            render_pass.draw_indexed(
-                0..mesh_buf.index_count,
-                0,
-                node_idx as u32..node_idx as u32 + 1,
-            );
-        }
+        render_pass.set_viewport(0.0, 0.0, self.size.0 as f32, self.size.1 as f32, 0.0, 1.0);
+        render_pass.set_pipeline(&debug.pipeline);
+        render_pass.set_bind_group(0, &bind_group, &[]);
+        render_pass.draw(0..6, 0..1);
     }
 
     fn ensure_debug_pipeline(&mut self, device: &wgpu::Device, color_format: wgpu::TextureFormat) {
-        if let Some((_, fmt)) = &self.debug_pipeline {
-            if *fmt == color_format {
+        if let Some(debug) = &self.debug_pipeline {
+            if debug.color_format == color_format {
                 return;
             }
         }
 
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Picking Debug Bind Group Layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Uint,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            }],
+        });
+
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Picking Debug Pipeline Layout"),
-            bind_group_layouts: &[&self.camera_bind_group_layout],
+            bind_group_layouts: &[&bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -450,39 +408,37 @@ impl PickingPass {
             cache: None,
             vertex: wgpu::VertexState {
                 module: &self.shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some("vs_overlay"),
                 compilation_options: Default::default(),
-                buffers: &[Vertex::desc(), InstanceData::desc()],
+                buffers: &[],
             },
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
+                cull_mode: None,
                 unclipped_depth: false,
                 polygon_mode: wgpu::PolygonMode::Fill,
                 conservative: false,
             },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth24Plus,
-                depth_write_enabled: false,
-                depth_compare: wgpu::CompareFunction::Always,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
+            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
-                entry_point: Some("fs_debug_main"),
+                entry_point: Some("fs_overlay"),
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: color_format,
-                    blend: None,
+                    blend: Some(wgpu::BlendState::REPLACE),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
         });
 
-        self.debug_pipeline = Some((pipeline, color_format));
+        self.debug_pipeline = Some(DebugOverlayPipeline {
+            pipeline,
+            bind_group_layout,
+            color_format,
+        });
     }
 }

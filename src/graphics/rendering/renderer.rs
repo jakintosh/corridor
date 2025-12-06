@@ -1,7 +1,5 @@
-use super::buffers::{
-    CameraBuffer, InstanceBuffer, InstanceData, LightingBuffer, LightingUniform, MeshBuffers,
-};
-use crate::graphics::scene::{Camera, Scene};
+use super::buffers::{CameraBuffer, InstanceBuffer, LightingBuffer, LightingUniform, MeshBuffers};
+use crate::graphics::scene::Scene;
 
 pub fn render_scene(
     encoder: &mut wgpu::CommandEncoder,
@@ -14,34 +12,10 @@ pub fn render_scene(
     lighting_buffer: &LightingBuffer,
     queue: &wgpu::Queue,
     scene: &Scene,
-    camera: &Camera,
     lighting: &LightingUniform,
 ) {
-    // Update camera uniform
-    let view_proj = camera.view_projection_matrix();
-    camera_buffer.update(queue, &view_proj);
-
     // Update lighting uniform
     lighting_buffer.update(queue, lighting);
-
-    // Build instance data from scene nodes
-    let instance_data: Vec<InstanceData> = scene
-        .nodes
-        .iter()
-        .enumerate()
-        .map(|(idx, node)| {
-            let matrix = node.transform.to_matrix();
-            let color = scene.materials[node.material_id].color;
-            InstanceData {
-                matrix,
-                color,
-                node_id: idx as u32,
-            }
-        })
-        .collect();
-
-    // Update instance buffer
-    instance_buffer.update(queue, &instance_data);
 
     // Begin render pass
     let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -77,7 +51,14 @@ pub fn render_scene(
     render_pass.set_bind_group(1, &lighting_buffer.bind_group, &[]);
     render_pass.set_vertex_buffer(1, instance_buffer.buffer.slice(..));
 
-    // Group nodes by mesh and render
+    draw_batched_instances(&mut render_pass, mesh_buffers, scene);
+}
+
+pub(crate) fn draw_batched_instances<'a>(
+    render_pass: &mut wgpu::RenderPass<'a>,
+    mesh_buffers: &'a [MeshBuffers],
+    scene: &'a Scene,
+) {
     let mut current_mesh: Option<usize> = None;
     let mut instance_start = 0;
     let mut instance_count = 0;
