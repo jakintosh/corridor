@@ -136,23 +136,20 @@ impl PickingPass {
 
     pub fn request_pick(&mut self, window_x: u32, window_y: u32, scale_factor: f64) {
         // On native, winit's WindowEvent coords are already physical; on web, apply the scale factor.
-        let factor = if cfg!(target_arch = "wasm32") {
-            scale_factor
-        } else {
-            1.0
+        let factor = match cfg!(target_arch = "wasm32") {
+            true => scale_factor,
+            false => 1.0,
         };
         let physical_x = (window_x as f64 * factor) as u32;
         let physical_y = (window_y as f64 * factor) as u32;
 
-        let texture_y = physical_y;
-
         // Bounds check
-        if physical_x >= self.size.0 || texture_y >= self.size.1 {
+        if physical_x >= self.size.0 || physical_y >= self.size.1 {
             return;
         }
 
         self.pending_pick = Some(PendingPick {
-            pixel_coords: (physical_x, texture_y),
+            pixel_coords: (physical_x, physical_y),
             frame_submitted: false,
             map_requested: false,
             receiver: None,
@@ -268,12 +265,11 @@ impl PickingPass {
             return None;
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            let _ = device.poll(wgpu::PollType::Poll);
+        // poll to flush the queue after calling map_async; don't care about result
+        match device.poll(wgpu::PollType::Poll) {
+            Ok(_) => { /* don't care */ }
+            Err(_) => { /* probably don't care? */ }
         }
-        #[cfg(target_arch = "wasm32")]
-        let _ = device;
 
         let receiver = pending.receiver.as_ref()?;
         match receiver.try_recv() {
