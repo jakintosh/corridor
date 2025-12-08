@@ -3,11 +3,13 @@ pub mod demo;
 mod material;
 pub mod network;
 mod node;
+mod picking;
 mod transform;
 
 pub use camera::Camera;
 pub use material::Material;
 pub use node::SceneNode;
+pub use picking::PickingState;
 pub use transform::Transform;
 
 use crate::graphics::geometry::Mesh;
@@ -16,6 +18,7 @@ pub struct Scene {
     pub meshes: Vec<Mesh>,
     pub materials: Vec<Material>,
     pub nodes: Vec<SceneNode>,
+    pub picking: PickingState,
 }
 
 impl Scene {
@@ -24,6 +27,7 @@ impl Scene {
             meshes: Vec::new(),
             materials: Vec::new(),
             nodes: Vec::new(),
+            picking: PickingState::new(),
         }
     }
 }
