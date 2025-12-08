@@ -54,11 +54,6 @@ impl CameraController {
     }
 }
 
-fn is_space_key(key: &Key) -> bool {
-    matches!(key, Key::Named(NamedKey::Space))
-        || matches!(key, Key::Character(character) if character == " ")
-}
-
 pub struct State {
     gpu: GpuContext,
     pub size: winit::dpi::PhysicalSize<u32>,
@@ -156,9 +151,12 @@ impl State {
         }
 
         if let WindowEvent::KeyboardInput { event, .. } = event {
-            if is_space_key(&event.logical_key) {
-                self.show_picking_overlay = event.state == ElementState::Pressed;
-                return true;
+            match event.logical_key.as_ref() {
+                Key::Named(NamedKey::Space) => {
+                    self.show_picking_overlay = event.state == ElementState::Pressed;
+                    return true;
+                }
+                _ => {}
             }
         }
 
