@@ -60,7 +60,7 @@ impl Pipeline {
                 module: &shader,
                 entry_point: Some("vs_main"),
                 compilation_options: Default::default(),
-                buffers: &[Vertex::desc(), InstanceData::desc()],
+                buffers: &[Vertex::desc(), InstanceData::render_desc()],
             },
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
