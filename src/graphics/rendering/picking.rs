@@ -135,6 +135,9 @@ impl PickingPass {
     }
 
     pub fn request_pick(&mut self, window_x: u32, window_y: u32, scale_factor: f64) {
+        // Replace any in-flight pick so we don't copy into a mapped buffer
+        self.cancel_pending_pick();
+
         // On native, winit's WindowEvent coords are already physical; on web, apply the scale factor.
         let factor = match cfg!(target_arch = "wasm32") {
             true => scale_factor,
@@ -283,13 +286,15 @@ impl PickingPass {
                 Some(value)
             }
             Ok(Err(_)) => {
-                self.readback_buffer.unmap();
+                if pending.map_requested {
+                    self.readback_buffer.unmap();
+                }
                 self.pending_pick = None;
                 None
             }
             Err(std::sync::mpsc::TryRecvError::Empty) => None,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                self.pending_pick = None;
+                self.cancel_pending_pick();
                 None
             }
         }
@@ -297,7 +302,7 @@ impl PickingPass {
 
     pub fn resize(&mut self, device: &wgpu::Device, width: u32, height: u32) {
         // Cancel any pending picks
-        self.pending_pick = None;
+        self.cancel_pending_pick();
 
         let width = width.max(1);
         let height = height.max(1);
@@ -368,6 +373,16 @@ impl PickingPass {
         render_pass.set_pipeline(&debug.pipeline);
         render_pass.set_bind_group(0, &bind_group, &[]);
         render_pass.draw(0..6, 0..1);
+    }
+
+    fn cancel_pending_pick(&mut self) {
+        if let Some(pending) = &self.pending_pick {
+            if pending.map_requested {
+                // Only unmap if a mapping was requested; unmapping an unmapped buffer panics
+                self.readback_buffer.unmap();
+            }
+        }
+        self.pending_pick = None;
     }
 
     fn ensure_debug_pipeline(&mut self, device: &wgpu::Device, color_format: wgpu::TextureFormat) {

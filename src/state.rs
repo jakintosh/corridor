@@ -145,39 +145,59 @@ impl State {
             return true;
         }
 
+        let mut event_used = false;
+
         // Track cursor position for picking
         if let WindowEvent::CursorMoved { position, .. } = event {
             self.last_cursor_position = Some(*position);
+
+            if self.scene.picking.is_dragging() {
+                let pos = (position.x as f32, position.y as f32);
+                self.scene.picking.update_drag(pos);
+                self.request_pick_at_cursor();
+                event_used = true;
+            }
         }
 
         if let WindowEvent::KeyboardInput { event, .. } = event {
             match event.logical_key.as_ref() {
                 Key::Named(NamedKey::Space) => {
                     self.show_picking_overlay = event.state == ElementState::Pressed;
-                    return true;
+                    event_used = true;
                 }
                 _ => {}
             }
         }
 
-        // Handle picking on left click (if not currently dragging)
+        // Handle picking on left click (if not currently dragging for camera)
         if let WindowEvent::MouseInput {
-            state: ElementState::Pressed,
+            state: button_state,
             button: MouseButton::Left,
             ..
         } = event
         {
-            if !self.camera_controller.mouse_dragging {
-                if let Some(pos) = self.last_cursor_position {
-                    let scale = self.window.scale_factor();
-                    self.picking_pass
-                        .request_pick(pos.x as u32, pos.y as u32, scale);
+            match button_state {
+                ElementState::Pressed => {
+                    // Left mouse pressed - start picking
+                    if let Some(pos) = self.last_cursor_position {
+                        let pos = (pos.x as f32, pos.y as f32);
+                        self.scene.picking.start_drag(pos);
+                        self.request_pick_at_cursor();
+                        event_used = true;
+                    }
+                }
+                ElementState::Released => {
+                    // Left mouse released - end picking
+                    if self.scene.picking.is_dragging() {
+                        self.scene.picking.end_drag();
+                        event_used = true;
+                    }
                 }
             }
-            // Don't return - let camera controller also handle this event
         }
 
-        self.camera_controller.handle_event(&mut self.camera, event)
+        let camera_used = self.camera_controller.handle_event(&mut self.camera, event);
+        event_used || camera_used
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -267,6 +287,7 @@ impl State {
 
         let prepared_ui = {
             let lighting_controls = &mut self.lighting_controls;
+            let picked_node_id = self.scene.picking.picked_node;
 
             self.ui.begin(
                 &*self.window,
@@ -279,6 +300,8 @@ impl State {
                             panels::camera_debug(ui, &camera_debug);
                             ui.separator();
                             panels::lighting(ui, lighting_controls);
+                            ui.separator();
+                            panels::picking_info(ui, picked_node_id);
                         });
                 },
             )
@@ -332,18 +355,36 @@ impl State {
         Ok(())
     }
 
-    fn handle_node_picked(&mut self, node_id: u32) {
-        if node_id == u32::MAX {
-            println!("Clicked background (no node)");
-            return;
+    fn request_pick_at_cursor(&mut self) {
+        if let Some(pos) = self.last_cursor_position {
+            let scale = self.window.scale_factor();
+            self.picking_pass
+                .request_pick(pos.x as u32, pos.y as u32, scale);
         }
+    }
 
-        if (node_id as usize) < self.scene.nodes.len() {
-            let node = &self.scene.nodes[node_id as usize];
-            println!(
-                "Picked node {}: mesh={}, material={}",
-                node_id, node.mesh_id, node.material_id
-            );
+    fn handle_node_picked(&mut self, node_id: u32) {
+        let picked_node_id = if node_id == u32::MAX {
+            None
+        } else {
+            Some(node_id)
+        };
+
+        // Update scene picking state
+        let changed = self.scene.picking.update_picked_node(picked_node_id);
+        
+        if changed {
+            if let Some(id) = picked_node_id {
+                if (id as usize) < self.scene.nodes.len() {
+                    let node = &self.scene.nodes[id as usize];
+                    println!(
+                        "Picked node {}: mesh={}, material={}",
+                        id, node.mesh_id, node.material_id
+                    );
+                }
+            } else {
+                println!("No node selected (clicked background)");
+            }
         }
     }
 }
