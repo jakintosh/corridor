@@ -1,14 +1,14 @@
 use crate::graphics::scene::{self, Camera, Scene};
 use crate::graphics::{
     CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
-    LightingSettings, MeshBuffers, PickingPass, Pipeline, render_scene,
+    LightingSettings, MeshBuffers, Pipeline, render_scene,
 };
-use crate::graphics::{CameraDebugInfo, RenderStats, EguiIntegration, panels};
+use crate::graphics::{CameraDebugInfo, EguiIntegration, RenderStats, panels};
 use crate::model::Network;
+use glam::Vec3;
 use instant::Instant;
 use std::collections::VecDeque;
 use winit::event::{ElementState, MouseButton, WindowEvent};
-use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
 
 #[derive(Default)]
@@ -70,9 +70,7 @@ pub struct State {
     lighting_controls: LightingControls,
     camera_controller: CameraController,
     window: std::sync::Arc<Window>,
-    picking_pass: PickingPass,
     last_cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
-    show_picking_overlay: bool,
     last_frame_time: Instant,
     frame_times: VecDeque<f32>,
     frame_count: u64,
@@ -117,13 +115,6 @@ impl State {
 
         let ui = EguiIntegration::new(&gpu.device, gpu.config.format, &window);
 
-        let picking_pass = PickingPass::new(
-            &gpu.device,
-            &pipeline.camera_bind_group_layout,
-            gpu.config.width,
-            gpu.config.height,
-        );
-
         Self {
             gpu,
             size,
@@ -138,9 +129,7 @@ impl State {
             lighting_controls,
             camera_controller: CameraController::default(),
             window,
-            picking_pass,
             last_cursor_position: None,
-            show_picking_overlay: false,
             last_frame_time: Instant::now(),
             frame_times: VecDeque::with_capacity(300),
             frame_count: 0,
@@ -159,20 +148,32 @@ impl State {
         if let WindowEvent::CursorMoved { position, .. } = event {
             self.last_cursor_position = Some(*position);
 
+            // Immediate CPU-based hover detection
+            let (ray_origin, ray_dir) = self.camera.screen_to_world_ray(
+                position.x as f32,
+                position.y as f32,
+                self.size.width as f32,
+                self.size.height as f32,
+            );
+            let hovered = self.scene.cpu_pick_ray(ray_origin, ray_dir);
+            self.scene.picking.update_hovered_node(hovered);
+
             if self.scene.picking.is_dragging() {
                 let pos = (position.x as f32, position.y as f32);
                 self.scene.picking.update_drag(pos);
-                self.request_pick_at_cursor();
-                event_used = true;
+
+                // Update dragged node position if node is locked
+                if self.scene.picking.is_node_locked() {
+                    if let Some(node_id) = self.scene.picking.picked_node {
+                        self.update_dragged_node_position(node_id);
+                    }
+                    event_used = true;
+                }
             }
         }
 
         if let WindowEvent::KeyboardInput { event, .. } = event {
             match event.logical_key.as_ref() {
-                Key::Named(NamedKey::Space) => {
-                    self.show_picking_overlay = event.state == ElementState::Pressed;
-                    event_used = true;
-                }
                 _ => {}
             }
         }
@@ -186,16 +187,26 @@ impl State {
         {
             match button_state {
                 ElementState::Pressed => {
-                    // Left mouse pressed - start picking
+                    // Left mouse pressed - start drag
                     if let Some(pos) = self.last_cursor_position {
                         let pos = (pos.x as f32, pos.y as f32);
                         self.scene.picking.start_drag(pos);
-                        self.request_pick_at_cursor();
-                        event_used = true;
+
+                        // Use current hover state to determine drag behavior
+                        if let Some(hovered_id) = self.scene.picking.hovered_node {
+                            if let Some(node) = self.scene.nodes.get(hovered_id as usize) {
+                                if node.selectable {
+                                    // Lock this node immediately for dragging
+                                    self.lock_node_for_drag(hovered_id);
+                                    event_used = true;
+                                }
+                            }
+                        }
+                        // If no selectable node hovered, don't set event_used (camera handles it)
                     }
                 }
                 ElementState::Released => {
-                    // Left mouse released - end picking
+                    // Left mouse released - end drag
                     if self.scene.picking.is_dragging() {
                         self.scene.picking.end_drag();
                         event_used = true;
@@ -204,7 +215,12 @@ impl State {
             }
         }
 
-        let camera_used = self.camera_controller.handle_event(&mut self.camera, event);
+        // Only allow camera control if we're not dragging a locked node
+        let camera_used = if self.scene.picking.is_node_locked() {
+            false
+        } else {
+            self.camera_controller.handle_event(&mut self.camera, event)
+        };
         event_used || camera_used
     }
 
@@ -220,10 +236,6 @@ impl State {
             // Recreate depth texture with new size
             self.gpu.depth_texture =
                 GpuContext::create_depth_texture(&self.gpu.device, new_size.width, new_size.height);
-
-            // Recreate picking texture with new size
-            self.picking_pass
-                .resize(&self.gpu.device, new_size.width, new_size.height);
 
             // Update camera aspect ratio
             let aspect_ratio = new_size.width as f32 / new_size.height as f32;
@@ -266,29 +278,13 @@ impl State {
             .nodes
             .iter()
             .enumerate()
-            .map(|(idx, node)| {
+            .map(|(_idx, node)| {
                 let matrix = node.transform.to_matrix();
                 let color = self.scene.materials[node.material_id].color;
-                InstanceData {
-                    matrix,
-                    color,
-                    node_id: idx as u32,
-                }
+                InstanceData { matrix, color }
             })
             .collect();
         self.instance_buffer.update(&self.gpu.queue, &instance_data);
-
-        // Execute picking pass if requested (before main render)
-        if self.picking_pass.should_execute() {
-            self.picking_pass.execute_pick(
-                &mut encoder,
-                &self.gpu.depth_texture,
-                &self.mesh_buffers,
-                &self.instance_buffer,
-                &self.camera_buffer,
-                &self.scene,
-            );
-        }
 
         // Calculate camera position from spherical coordinates (UI readout)
         let cam_x = self.camera.target.x
@@ -308,27 +304,48 @@ impl State {
 
         // Calculate FPS from frame times
         let current_fps = if let Some(&last_delta) = self.frame_times.back() {
-            if last_delta > 0.0 { 1.0 / last_delta } else { 0.0 }
-        } else { 0.0 };
+            if last_delta > 0.0 {
+                1.0 / last_delta
+            } else {
+                0.0
+            }
+        } else {
+            0.0
+        };
 
         let avg_fps_1s = {
             let samples: Vec<_> = self.frame_times.iter().rev().take(60).copied().collect();
             if !samples.is_empty() {
                 let avg_delta: f32 = samples.iter().sum::<f32>() / samples.len() as f32;
-                if avg_delta > 0.0 { 1.0 / avg_delta } else { 0.0 }
-            } else { 0.0 }
+                if avg_delta > 0.0 {
+                    1.0 / avg_delta
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
         };
 
         let avg_fps_5s = {
             let samples: Vec<_> = self.frame_times.iter().copied().collect();
             if !samples.is_empty() {
                 let avg_delta: f32 = samples.iter().sum::<f32>() / samples.len() as f32;
-                if avg_delta > 0.0 { 1.0 / avg_delta } else { 0.0 }
-            } else { 0.0 }
+                if avg_delta > 0.0 {
+                    1.0 / avg_delta
+                } else {
+                    0.0
+                }
+            } else {
+                0.0
+            }
         };
 
         // Calculate vertex count
-        let vertex_count: usize = self.scene.nodes.iter()
+        let vertex_count: usize = self
+            .scene
+            .nodes
+            .iter()
             .map(|node| self.scene.meshes[node.mesh_id].vertices.len())
             .sum();
 
@@ -343,7 +360,7 @@ impl State {
 
         let prepared_ui = {
             let lighting_controls = &mut self.lighting_controls;
-            let picked_node_id = self.scene.picking.picked_node;
+            let hovered_node_id = self.scene.picking.hovered_node;
 
             self.ui.begin(
                 &*self.window,
@@ -357,7 +374,7 @@ impl State {
                             ui.separator();
                             panels::lighting(ui, lighting_controls);
                             ui.separator();
-                            panels::picking_info(ui, picked_node_id);
+                            panels::hover_info(ui, hovered_node_id);
                             ui.separator();
                             panels::render_stats(ui, &render_stats);
                         });
@@ -383,15 +400,6 @@ impl State {
             &lighting_settings.to_uniform(),
         );
 
-        if self.show_picking_overlay {
-            self.picking_pass.render_debug_overlay(
-                &self.gpu.device,
-                &mut encoder,
-                &view,
-                self.gpu.config.format,
-            );
-        }
-
         // Render egui UI overlay
         self.ui.paint(
             &self.gpu.device,
@@ -403,45 +411,63 @@ impl State {
 
         self.gpu.queue.submit(std::iter::once(encoder.finish()));
 
-        // Poll for picking result (after submit)
-        if let Some(node_id) = self.picking_pass.poll_result(&self.gpu.device) {
-            self.handle_node_picked(node_id);
-        }
-
         surface_output.present();
 
         Ok(())
     }
 
-    fn request_pick_at_cursor(&mut self) {
-        if let Some(pos) = self.last_cursor_position {
-            let scale = self.window.scale_factor();
-            self.picking_pass
-                .request_pick(pos.x as u32, pos.y as u32, scale);
+    fn update_dragged_node_position(&mut self, node_id: u32) {
+        // Cast ray from current cursor position through camera
+        if let Some(cursor_pos) = self.last_cursor_position {
+            let (origin, direction) = self.camera.screen_to_world_ray(
+                cursor_pos.x as f32,
+                cursor_pos.y as f32,
+                self.size.width as f32,
+                self.size.height as f32,
+            );
+
+            // Intersect with ground plane (Y=0)
+            let ground_plane_point = Vec3::ZERO;
+            let ground_plane_normal = Vec3::Y;
+
+            if let Some(ground_pos) = Camera::ray_plane_intersection(
+                origin,
+                direction,
+                ground_plane_point,
+                ground_plane_normal,
+            ) {
+                // Apply the stored offset
+                if let Some(offset) = self.scene.picking.get_drag_offset() {
+                    let new_position = ground_pos + offset;
+
+                    // Force Y to 0 (ground plane) per user preference
+                    let new_position = Vec3::new(new_position.x, 0.0, new_position.z);
+
+                    self.scene.update_node_position(node_id, new_position);
+                }
+            }
         }
     }
 
-    fn handle_node_picked(&mut self, node_id: u32) {
-        let picked_node_id = if node_id == u32::MAX {
-            None
-        } else {
-            Some(node_id)
-        };
+    fn lock_node_for_drag(&mut self, node_id: u32) {
+        if let Some(cursor_pos) = self.last_cursor_position {
+            let (origin, direction) = self.camera.screen_to_world_ray(
+                cursor_pos.x as f32,
+                cursor_pos.y as f32,
+                self.size.width as f32,
+                self.size.height as f32,
+            );
 
-        // Update scene picking state
-        let changed = self.scene.picking.update_picked_node(picked_node_id);
-        
-        if changed {
-            if let Some(id) = picked_node_id {
-                if (id as usize) < self.scene.nodes.len() {
-                    let node = &self.scene.nodes[id as usize];
-                    println!(
-                        "Picked node {}: mesh={}, material={}",
-                        id, node.mesh_id, node.material_id
-                    );
+            if let Some(click_world_pos) =
+                Camera::ray_plane_intersection(origin, direction, Vec3::ZERO, Vec3::Y)
+            {
+                if let Some(node) = self.scene.nodes.get(node_id as usize) {
+                    let offset = node.transform.position - click_world_pos;
+                    let offset = Vec3::new(offset.x, 0.0, offset.z);
+
+                    self.scene.picking.update_picked_node(Some(node_id));
+                    self.scene.picking.lock_node_with_offset(offset);
                 }
-            } else {
-                println!("No node selected (clicked background)");
             }
         }
     }

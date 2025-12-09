@@ -1,14 +1,30 @@
 use super::{Scene, SceneNode};
+use glam::Vec3;
+
 #[derive(Debug, Default)]
 pub struct PickingState {
-    /// Currently picked node ID, or None if no node is picked
+    /// Currently hovered node ID (continuously updated)
+    pub hovered_node: Option<u32>,
+    /// Currently picked node ID (locked during drag)
     pub picked_node: Option<u32>,
     drag: Option<DragState>,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct DragState {
     last_mouse_pos: (f32, f32),
+    node_locked: bool,
+    drag_offset: Option<Vec3>,
+}
+
+impl Default for DragState {
+    fn default() -> Self {
+        Self {
+            last_mouse_pos: (0.0, 0.0),
+            node_locked: false,
+            drag_offset: None,
+        }
+    }
 }
 
 impl PickingState {
@@ -38,6 +54,8 @@ impl PickingState {
     pub fn start_drag(&mut self, mouse_pos: (f32, f32)) {
         self.drag = Some(DragState {
             last_mouse_pos: mouse_pos,
+            node_locked: false,
+            drag_offset: None,
         });
     }
 
@@ -59,5 +77,28 @@ impl PickingState {
 
     pub fn is_dragging(&self) -> bool {
         self.drag.is_some()
+    }
+
+    /// Lock the current drag to a specific node with an offset
+    pub fn lock_node_with_offset(&mut self, offset: Vec3) {
+        if let Some(drag) = self.drag.as_mut() {
+            drag.node_locked = true;
+            drag.drag_offset = Some(offset);
+        }
+    }
+
+    /// Check if the currently dragged node is locked
+    pub fn is_node_locked(&self) -> bool {
+        self.drag.as_ref().map_or(false, |d| d.node_locked)
+    }
+
+    /// Get the drag offset if available
+    pub fn get_drag_offset(&self) -> Option<Vec3> {
+        self.drag.as_ref().and_then(|d| d.drag_offset)
+    }
+
+    /// Update the hovered node (continuously updated, independent of drag)
+    pub fn update_hovered_node(&mut self, node_id: Option<u32>) {
+        self.hovered_node = node_id;
     }
 }

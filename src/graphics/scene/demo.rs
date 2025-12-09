@@ -25,6 +25,7 @@ pub fn create_demo_scene() -> Scene {
         1,
         3,
         Transform::new([0.0, 0.0, 0.0], [0.0, 0.0, 0.0], [10.0, 1.0, 10.0]),
+        true,
     ));
 
     // Red cube at (-2, 0.5, 0) - will rotate on Y axis
@@ -32,6 +33,7 @@ pub fn create_demo_scene() -> Scene {
         0,
         0,
         Transform::new([-2.0, 0.5, 0.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
+        true,
     ));
 
     // Blue cube at (2, 0.5, 0) - will rotate on X axis
@@ -39,6 +41,7 @@ pub fn create_demo_scene() -> Scene {
         0,
         1,
         Transform::new([2.0, 0.5, 0.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
+        true,
     ));
 
     // Small green cube at (0, 1, 2) - will rotate on multiple axes
@@ -46,6 +49,7 @@ pub fn create_demo_scene() -> Scene {
         0,
         2,
         Transform::new([0.0, 1.0, 2.0], [0.0, 0.0, 0.0], [0.5, 0.5, 0.5]),
+        true,
     ));
 
     // Additional cubes showing instancing
@@ -53,18 +57,21 @@ pub fn create_demo_scene() -> Scene {
         0,
         0,
         Transform::new([-4.0, 0.3, -3.0], [0.0, 0.0, 0.0], [0.6, 0.6, 0.6]),
+        true,
     ));
 
     scene.nodes.push(SceneNode::new(
         0,
         1,
         Transform::new([4.0, 0.3, -3.0], [0.0, 0.0, 0.0], [0.6, 0.6, 0.6]),
+        true,
     ));
 
     scene.nodes.push(SceneNode::new(
         0,
         2,
         Transform::new([0.0, 0.3, -4.0], [0.0, 0.0, 0.0], [0.6, 0.6, 0.6]),
+        true,
     ));
 
     // Line segments forming a simple grid on the ground
@@ -78,6 +85,7 @@ pub fn create_demo_scene() -> Scene {
                 [0.0, 0.0, 0.0],
                 [8.0, 1.0, 1.0],
             ),
+            true,
         ));
     }
 
@@ -91,6 +99,7 @@ pub fn create_demo_scene() -> Scene {
                 [0.0, std::f32::consts::FRAC_PI_2, 0.0],
                 [8.0, 1.0, 1.0],
             ),
+            true,
         ));
     }
 

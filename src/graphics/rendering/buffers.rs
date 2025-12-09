@@ -7,11 +7,10 @@ use wgpu::util::DeviceExt;
 pub struct InstanceData {
     pub matrix: [[f32; 4]; 4],
     pub color: [f32; 4],
-    pub node_id: u32,
 }
 
 impl InstanceData {
-    const BASE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = [
+    const BASE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = [
         // Matrix columns (4 vec4s)
         wgpu::VertexAttribute {
             format: wgpu::VertexFormat::Float32x4,
@@ -39,23 +38,9 @@ impl InstanceData {
             offset: 64,
             shader_location: 6,
         },
-        // Node ID attribute (used in picking layout)
-        wgpu::VertexAttribute {
-            format: wgpu::VertexFormat::Uint32,
-            offset: 80,
-            shader_location: 7,
-        },
     ];
 
     pub fn render_desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<InstanceData>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::BASE_ATTRIBUTES[..5],
-        }
-    }
-
-    pub fn picking_desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<InstanceData>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Instance,

@@ -84,14 +84,14 @@ pub fn lighting(ui: &mut Ui, controls: &mut LightingControls) {
     ui.add(egui::Slider::new(&mut controls.ambient_height, 0.1..=20.0).text("Ambient height"));
 }
 
-pub fn picking_info(ui: &mut Ui, picked_node_id: Option<u32>) {
-    ui.label("Picking");
-    match picked_node_id {
+pub fn hover_info(ui: &mut Ui, hovered_node_id: Option<u32>) {
+    ui.label("Hover");
+    match hovered_node_id {
         Some(node_id) => {
-            ui.monospace(format!("Picked Node ID: {}", node_id));
+            ui.monospace(format!("Hovered Node ID: {}", node_id));
         }
         None => {
-            ui.monospace("Picked Node ID: None");
+            ui.monospace("Hovered Node ID: None");
         }
     }
 }

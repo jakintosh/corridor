@@ -39,6 +39,7 @@ pub fn network_to_scene(network: &Network) -> Scene {
                     1, // line mesh
                     mode_material_id(*mode),
                     edge_transform(from.position, to.position, mode_height(*mode)),
+                    true,
                 ));
             }
         }
@@ -56,6 +57,7 @@ pub fn network_to_scene(network: &Network) -> Scene {
                     [0.0, 0.0, 0.0],
                     [0.15, 0.15, 0.15], // Small cube
                 ),
+                true,
             ));
         }
     }
