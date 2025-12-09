@@ -11,6 +11,16 @@ pub struct CameraDebugInfo {
     pub object_count: usize,
 }
 
+#[derive(Clone, Copy)]
+pub struct RenderStats {
+    pub node_count: usize,
+    pub vertex_count: usize,
+    pub material_count: usize,
+    pub current_fps: f32,
+    pub avg_fps_1s: f32,
+    pub avg_fps_5s: f32,
+}
+
 pub fn camera_debug(ui: &mut Ui, info: &CameraDebugInfo) {
     ui.label("Camera");
     ui.label("Left-click and drag to orbit camera");
@@ -84,4 +94,15 @@ pub fn picking_info(ui: &mut Ui, picked_node_id: Option<u32>) {
             ui.monospace("Picked Node ID: None");
         }
     }
+}
+
+pub fn render_stats(ui: &mut Ui, stats: &RenderStats) {
+    ui.label("Rendering Statistics");
+    ui.monospace(format!(
+        "FPS: {:.1} (1s: {:.1}, 5s: {:.1})",
+        stats.current_fps, stats.avg_fps_1s, stats.avg_fps_5s
+    ));
+    ui.monospace(format!("Nodes: {}", stats.node_count));
+    ui.monospace(format!("Vertices: {}", stats.vertex_count));
+    ui.monospace(format!("Materials: {}", stats.material_count));
 }

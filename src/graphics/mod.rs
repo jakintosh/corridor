@@ -9,4 +9,4 @@ pub use rendering::{
     CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
     LightingSettings, MeshBuffers, PickingPass, Pipeline, render_scene,
 };
-pub use ui::{CameraDebugInfo, EguiIntegration, panels};
+pub use ui::{CameraDebugInfo, RenderStats, EguiIntegration, panels};

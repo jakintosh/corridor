@@ -3,8 +3,10 @@ use crate::graphics::{
     CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
     LightingSettings, MeshBuffers, PickingPass, Pipeline, render_scene,
 };
-use crate::graphics::{CameraDebugInfo, EguiIntegration, panels};
+use crate::graphics::{CameraDebugInfo, RenderStats, EguiIntegration, panels};
 use crate::model::Network;
+use instant::Instant;
+use std::collections::VecDeque;
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::Window;
@@ -71,6 +73,9 @@ pub struct State {
     picking_pass: PickingPass,
     last_cursor_position: Option<winit::dpi::PhysicalPosition<f64>>,
     show_picking_overlay: bool,
+    last_frame_time: Instant,
+    frame_times: VecDeque<f32>,
+    frame_count: u64,
 }
 
 impl State {
@@ -136,6 +141,9 @@ impl State {
             picking_pass,
             last_cursor_position: None,
             show_picking_overlay: false,
+            last_frame_time: Instant::now(),
+            frame_times: VecDeque::with_capacity(300),
+            frame_count: 0,
         }
     }
 
@@ -223,7 +231,20 @@ impl State {
         }
     }
 
-    pub fn update(&mut self) {}
+    pub fn update(&mut self) {
+        let now = Instant::now();
+        let delta = now.duration_since(self.last_frame_time).as_secs_f32();
+
+        if delta > 0.0 {
+            self.frame_times.push_back(delta);
+            if self.frame_times.len() > 300 {
+                self.frame_times.pop_front();
+            }
+        }
+
+        self.last_frame_time = now;
+        self.frame_count += 1;
+    }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
         let surface_output = self.gpu.surface.get_current_texture()?;
@@ -285,6 +306,41 @@ impl State {
             object_count: self.scene.nodes.len(),
         };
 
+        // Calculate FPS from frame times
+        let current_fps = if let Some(&last_delta) = self.frame_times.back() {
+            if last_delta > 0.0 { 1.0 / last_delta } else { 0.0 }
+        } else { 0.0 };
+
+        let avg_fps_1s = {
+            let samples: Vec<_> = self.frame_times.iter().rev().take(60).copied().collect();
+            if !samples.is_empty() {
+                let avg_delta: f32 = samples.iter().sum::<f32>() / samples.len() as f32;
+                if avg_delta > 0.0 { 1.0 / avg_delta } else { 0.0 }
+            } else { 0.0 }
+        };
+
+        let avg_fps_5s = {
+            let samples: Vec<_> = self.frame_times.iter().copied().collect();
+            if !samples.is_empty() {
+                let avg_delta: f32 = samples.iter().sum::<f32>() / samples.len() as f32;
+                if avg_delta > 0.0 { 1.0 / avg_delta } else { 0.0 }
+            } else { 0.0 }
+        };
+
+        // Calculate vertex count
+        let vertex_count: usize = self.scene.nodes.iter()
+            .map(|node| self.scene.meshes[node.mesh_id].vertices.len())
+            .sum();
+
+        let render_stats = RenderStats {
+            node_count: self.scene.nodes.len(),
+            vertex_count,
+            material_count: self.scene.materials.len(),
+            current_fps,
+            avg_fps_1s,
+            avg_fps_5s,
+        };
+
         let prepared_ui = {
             let lighting_controls = &mut self.lighting_controls;
             let picked_node_id = self.scene.picking.picked_node;
@@ -302,6 +358,8 @@ impl State {
                             panels::lighting(ui, lighting_controls);
                             ui.separator();
                             panels::picking_info(ui, picked_node_id);
+                            ui.separator();
+                            panels::render_stats(ui, &render_stats);
                         });
                 },
             )
