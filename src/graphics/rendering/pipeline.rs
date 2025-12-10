@@ -42,7 +42,7 @@ impl Pipeline {
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(shaders::cube_shader_source().into()),
+            source: wgpu::ShaderSource::Wgsl(shaders::scene_shader_source().into()),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {

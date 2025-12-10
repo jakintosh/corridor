@@ -6,6 +6,7 @@ pub struct SceneNode {
     pub material_id: usize,
     pub transform: Transform,
     pub selectable: bool,
+    pub parent_id: Option<u32>,
 }
 
 impl SceneNode {
@@ -15,6 +16,12 @@ impl SceneNode {
             material_id,
             transform,
             selectable,
+            parent_id: None,
         }
+    }
+
+    pub fn with_parent(mut self, parent_id: u32) -> Self {
+        self.parent_id = Some(parent_id);
+        self
     }
 }

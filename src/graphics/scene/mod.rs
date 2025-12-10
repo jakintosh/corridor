@@ -40,6 +40,54 @@ impl Scene {
         }
     }
 
+    /// Compute the world transform for a node by traversing its parent chain
+    /// Returns the combined world matrix
+    pub fn compute_world_transform(&self, node_id: u32) -> [[f32; 4]; 4] {
+        let node = &self.nodes[node_id as usize];
+
+        match node.parent_id {
+            None => {
+                // Root node - local transform is world transform
+                node.transform.to_matrix()
+            }
+            Some(parent_id) => {
+                // Has parent - compute parent's world transform first (recursive)
+                let parent_world = self.compute_world_transform(parent_id);
+                let parent_matrix = Mat4::from_cols_array_2d(&parent_world);
+                node.transform.combine_with_parent(parent_matrix)
+            }
+        }
+    }
+
+    /// Get all direct children of a node
+    pub fn get_children(&self, parent_id: u32) -> Vec<u32> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, node)| {
+                if node.parent_id == Some(parent_id) {
+                    Some(idx as u32)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Get all descendants (recursive) of a node
+    pub fn get_descendants(&self, parent_id: u32) -> Vec<u32> {
+        let mut descendants = Vec::new();
+        let mut to_visit = vec![parent_id];
+
+        while let Some(current) = to_visit.pop() {
+            let children = self.get_children(current);
+            descendants.extend(&children);
+            to_visit.extend(&children);
+        }
+
+        descendants
+    }
+
     /// Two-phase CPU-based raycast picking - returns closest hovered node
     ///
     /// Phase 1 (Broad): AABB intersection to cull non-hit meshes
@@ -56,7 +104,9 @@ impl Scene {
             }
 
             let mesh = &self.meshes[node.mesh_id];
-            let transform_matrix = Mat4::from_cols_array_2d(&node.transform.to_matrix());
+            let node_id = idx as u32;
+            let world_matrix = self.compute_world_transform(node_id);
+            let transform_matrix = Mat4::from_cols_array_2d(&world_matrix);
 
             // Phase 1: Broad-phase AABB test (fast cull)
             let aabb = compute_node_aabb(&mesh.vertices, transform_matrix);

@@ -7,10 +7,12 @@ use wgpu::util::DeviceExt;
 pub struct InstanceData {
     pub matrix: [[f32; 4]; 4],
     pub color: [f32; 4],
+    pub state_flags: u32,
+    pub _padding: [u32; 3],
 }
 
 impl InstanceData {
-    const BASE_ATTRIBUTES: [wgpu::VertexAttribute; 5] = [
+    const BASE_ATTRIBUTES: [wgpu::VertexAttribute; 6] = [
         // Matrix columns (4 vec4s)
         wgpu::VertexAttribute {
             format: wgpu::VertexFormat::Float32x4,
@@ -37,6 +39,12 @@ impl InstanceData {
             format: wgpu::VertexFormat::Float32x4,
             offset: 64,
             shader_location: 6,
+        },
+        // State flags (1 u32)
+        wgpu::VertexAttribute {
+            format: wgpu::VertexFormat::Uint32,
+            offset: 80,
+            shader_location: 7,
         },
     ];
 

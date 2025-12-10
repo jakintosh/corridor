@@ -3,3 +3,4 @@
 
 # wasm artifacts
 /web/pkg/
+/web/data/

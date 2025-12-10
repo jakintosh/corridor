@@ -31,4 +31,18 @@ impl Transform {
 
         (translation * rotation * scale).to_cols_array_2d()
     }
+
+    pub fn to_matrix_as_mat4(&self) -> Mat4 {
+        let translation = Mat4::from_translation(self.position);
+        let rotation = Mat4::from_quat(self.rotation);
+        let scale = Mat4::from_scale(self.scale);
+        translation * rotation * scale
+    }
+
+    /// Combine this local transform with a parent's world matrix
+    /// Returns the world transform: parent_world * local
+    pub fn combine_with_parent(&self, parent_matrix: Mat4) -> [[f32; 4]; 4] {
+        let local_matrix = self.to_matrix_as_mat4();
+        (parent_matrix * local_matrix).to_cols_array_2d()
+    }
 }

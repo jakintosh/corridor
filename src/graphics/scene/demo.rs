@@ -103,5 +103,61 @@ pub fn create_demo_scene() -> Scene {
         ));
     }
 
+    // Parent/child hierarchy demonstration
+    // Create yellow material for parent
+    scene.materials.push(Material::from_rgb(1.0, 1.0, 0.0)); // Yellow, material_id = 5
+
+    // Parent cube (yellow)
+    let parent_idx = scene.nodes.len() as u32;
+    scene.nodes.push(SceneNode::new(
+        0,
+        5,
+        Transform::new([0.0, 1.5, -2.0], [0.0, 0.0, 0.0], [1.0, 1.0, 1.0]),
+        true,
+    ));
+
+    // Create cyan material for first child
+    scene.materials.push(Material::from_rgb(0.0, 1.0, 1.0)); // Cyan, material_id = 6
+
+    // Child cube 1 (cyan) - offset to the right of parent (local space)
+    scene.nodes.push(
+        SceneNode::new(
+            0,
+            6,
+            Transform::new([1.5, 0.0, 0.0], [0.0, 0.0, 0.0], [0.5, 0.5, 0.5]),
+            true,
+        )
+        .with_parent(parent_idx)
+    );
+
+    // Create magenta material for second child
+    scene.materials.push(Material::from_rgb(1.0, 0.0, 1.0)); // Magenta, material_id = 7
+
+    // Child cube 2 (magenta) - offset to the left of parent (local space)
+    scene.nodes.push(
+        SceneNode::new(
+            0,
+            7,
+            Transform::new([-1.5, 0.0, 0.0], [0.0, 0.0, 0.0], [0.5, 0.5, 0.5]),
+            true,
+        )
+        .with_parent(parent_idx)
+    );
+
+    // Create white material for grandchild
+    scene.materials.push(Material::from_rgb(1.0, 1.0, 1.0)); // White, material_id = 8
+
+    // Grandchild cube (white) - child of cyan cube
+    let cyan_idx = (parent_idx + 1) as u32;
+    scene.nodes.push(
+        SceneNode::new(
+            0,
+            8,
+            Transform::new([0.0, 1.0, 0.0], [0.0, 0.0, 0.0], [0.3, 0.3, 0.3]),
+            true,
+        )
+        .with_parent(cyan_idx)
+    );
+
     scene
 }

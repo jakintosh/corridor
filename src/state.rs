@@ -278,10 +278,31 @@ impl State {
             .nodes
             .iter()
             .enumerate()
-            .map(|(_idx, node)| {
-                let matrix = node.transform.to_matrix();
+            .map(|(idx, node)| {
+                let node_id = idx as u32;
+                let matrix = self.scene.compute_world_transform(node_id);
                 let color = self.scene.materials[node.material_id].color;
-                InstanceData { matrix, color }
+
+                // Compute state flags
+                let mut state_flags = 0u32;
+
+                if self.scene.picking.is_dragging() {
+                    if let Some(dragged_id) = self.scene.picking.picked_node {
+                        // Highlight dragged node AND all its children
+                        if node_id == dragged_id || self.is_descendant_of(node_id, dragged_id) {
+                            state_flags |= 0x02; // STATE_DRAGGING
+                        }
+                    }
+                } else if self.scene.picking.hovered_node == Some(node_id) {
+                    state_flags |= 0x01; // STATE_HOVERED
+                }
+
+                InstanceData {
+                    matrix,
+                    color,
+                    state_flags,
+                    _padding: [0, 0, 0],
+                }
             })
             .collect();
         self.instance_buffer.update(&self.gpu.queue, &instance_data);
@@ -470,5 +491,10 @@ impl State {
                 }
             }
         }
+    }
+
+    fn is_descendant_of(&self, potential_child: u32, potential_ancestor: u32) -> bool {
+        let descendants = self.scene.get_descendants(potential_ancestor);
+        descendants.contains(&potential_child)
     }
 }
