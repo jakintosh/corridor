@@ -1,4 +1,5 @@
 use crate::graphics::scene::{self, Camera, Scene};
+use crate::graphics::scene::network::update_network_edges;
 use crate::graphics::{
     CameraBuffer, GpuContext, InstanceBuffer, InstanceData, LightingBuffer, LightingControls,
     LightingSettings, MeshBuffers, Pipeline, render_scene,
@@ -465,6 +466,9 @@ impl State {
                     let new_position = Vec3::new(new_position.x, 0.0, new_position.z);
 
                     self.scene.update_node_position(node_id, new_position);
+
+                    // Update all edges connected to this node
+                    update_network_edges(&mut self.scene, node_id);
                 }
             }
         }

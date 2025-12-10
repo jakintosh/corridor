@@ -22,6 +22,7 @@ pub struct Scene {
     pub materials: Vec<Material>,
     pub nodes: Vec<SceneNode>,
     pub picking: PickingState,
+    pub edge_node_refs: Vec<Option<(u32, u32)>>,
 }
 
 impl Scene {
@@ -31,6 +32,7 @@ impl Scene {
             materials: Vec::new(),
             nodes: Vec::new(),
             picking: PickingState::new(),
+            edge_node_refs: Vec::new(),
         }
     }
 
